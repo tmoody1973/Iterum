@@ -12,7 +12,7 @@ import { BoardOutline } from './mechanical/board-outline'
 import { MechanicalCanvas } from './mechanical/mechanical-canvas-loader'
 import { MechanicalToolbar } from './mechanical/mechanical-toolbar'
 import { useContainerSize } from '../hooks/use-container-size'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { ActionReceipt } from './review/action-receipt'
 import { ReviewTray } from './review/review-tray'
 
@@ -24,15 +24,26 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const setActiveTool = useUiStore((state) => state.setActiveTool)
   const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
   const selectBoardItem = useUiStore((state) => state.selectBoardItem)
+  const isBriefDrawerOpen = useUiStore((state) => state.isBriefDrawerOpen)
+  const isReviewDrawerOpen = useUiStore((state) => state.isReviewDrawerOpen)
+  const setBriefDrawerOpen = useUiStore((state) => state.setBriefDrawerOpen)
+  const setReviewDrawerOpen = useUiStore((state) => state.setReviewDrawerOpen)
   const canvasHost = useRef<HTMLDivElement>(null)
   const canvasSize = useContainerSize(canvasHost)
   const versionLabel = `V${String(snapshot.version).padStart(2, '0')}`
 
+  useEffect(() => {
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches) setReviewDrawerOpen(true)
+  }, [setReviewDrawerOpen])
+
   return (
-    <div className="workspace" data-testid="iterum-workspace">
-      <TopToolbar />
+    <div className={`workspace${isBriefDrawerOpen ? ' is-brief-drawer-open' : ''}${isReviewDrawerOpen ? ' is-review-drawer-open' : ''}`} data-testid="iterum-workspace">
+      <TopToolbar
+        onOpenBrief={() => { setReviewDrawerOpen(false); setBriefDrawerOpen(true) }}
+        onOpenReview={() => { setBriefDrawerOpen(false); setReviewDrawerOpen(true) }}
+      />
       <div className="desk-zones">
-        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} />
+        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={() => setBriefDrawerOpen(false)} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
@@ -55,8 +66,9 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           </section>
           <BoardOutline snapshot={snapshot} runtime={workspaceRuntime} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />
           <ActionReceipt receipt={snapshot.receipts[0]} runtime={workspaceRuntime} />
+          <p className="board-preview-notice">Board preview · canvas editing continues on desktop</p>
         </main>
-        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} />
+        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setReviewDrawerOpen(false)} />
       </div>
       <BottomModeBar version={snapshot.version} />
     </div>

@@ -6,10 +6,10 @@ function TicketField({ label, value }: { label: string; value: string }) {
   return <><dt>{label}</dt><dd>{value}</dd></>
 }
 
-export function CampaignJobTicket({ campaign, version }: { campaign: Campaign; version: WorkspaceState['version'] }) {
+export function CampaignJobTicket({ campaign, version, onClose }: { campaign: Campaign; version: WorkspaceState['version']; onClose?: () => void }) {
   return (
-    <aside className="job-ticket" aria-label="Campaign job ticket">
-      <div className="ticket-topline"><span>Campaign job ticket</span><span className="ticket-id">#SB-2024-017</span></div>
+    <aside className="job-ticket" id="campaign-job-ticket" aria-label="Campaign job ticket">
+      <div className="ticket-topline"><span>Campaign job ticket</span><span className="ticket-id">#SB-2024-017</span><button className="drawer-close" type="button" onClick={onClose}>Close brief</button></div>
       <section className="ticket-title" aria-labelledby="campaign-name">
         <h1 id="campaign-name">{campaign.name}</h1>
         <p>The air remembers.</p>

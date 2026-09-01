@@ -11,14 +11,14 @@ function proposalCommand(runtime: WorkspaceRuntime, snapshot: WorkspaceState, pr
   return runtime.dispatch({ type, campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id })
 }
 
-export function ReviewTray({ snapshot, runtime }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime }) {
+export function ReviewTray({ snapshot, runtime, onClose }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; onClose?: () => void }) {
   const activeRightTab = useUiStore((state) => state.activeRightTab)
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const pending = snapshot.proposals.filter((proposal) => proposal.status === 'pending')
   const policy = snapshot.placementPolicy
   const togglePolicy = () => runtime.dispatch({ type: 'set-placement-policy', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', placementPolicy: { allowAgentDirectPlacement: !policy.allowAgentDirectPlacement, directPlacementTerritory: 'Agent Additions' } })
-  return <aside className="review-tray" aria-label="Review tray">
-    <div className="review-heading"><h2>Review tray</h2><span>{pending.length} pending</span></div>
+  return <aside className="review-tray" id="review-tray" aria-label="Review tray">
+    <div className="review-heading"><h2>Review tray</h2><span>{pending.length} pending</span><button className="drawer-close" type="button" onClick={onClose}>Board preview</button></div>
     <div className="review-tabs" role="tablist" aria-label="Proposal galley views"><button role="tab" aria-selected={activeRightTab === 'review'} onClick={() => setActiveRightTab('review')}>Review</button><button role="tab" aria-selected={activeRightTab === 'activity'} onClick={() => setActiveRightTab('activity')}>Activity</button></div>
     {activeRightTab === 'review' ? <>
       <label className="placement-policy"><input type="checkbox" checked={policy.allowAgentDirectPlacement} onChange={togglePolicy} /><span><strong>Allow agent direct placement</strong><small>Restricted to Agent Additions territory.</small></span></label>

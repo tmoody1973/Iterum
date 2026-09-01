@@ -14,6 +14,7 @@ export function useContainerSize(ref: RefObject<HTMLElement | null>): ContainerS
 
     const update = () => setSize({ width: element.clientWidth, height: element.clientHeight })
     update()
+    if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(update)
     observer.observe(element)
     return () => observer.disconnect()

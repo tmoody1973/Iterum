@@ -10,7 +10,7 @@ const tools = [
   ['annotate', 'Annotate'],
 ] as const
 
-export function TopToolbar() {
+export function TopToolbar({ onOpenBrief, onOpenReview }: { onOpenBrief: () => void; onOpenReview: () => void }) {
   const activeTool = useUiStore((state) => state.activeTool)
   const setActiveTool = useUiStore((state) => state.setActiveTool)
 
@@ -33,6 +33,10 @@ export function TopToolbar() {
           </button>
         ))}
       </nav>
+      <div className="drawer-controls" aria-label="Workspace panels">
+        <button type="button" aria-controls="campaign-job-ticket" onClick={onOpenBrief}>Brief</button>
+        <button type="button" aria-controls="review-tray" onClick={onOpenReview}>Review tray</button>
+      </div>
       <div className="view-readout"><span>View</span> Mechanical</div>
     </header>
   )

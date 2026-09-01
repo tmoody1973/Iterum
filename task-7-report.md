@@ -1,0 +1,44 @@
+# Task 7 browser proof
+
+## Red / green
+
+- Green — wide desktop retains the Campaign Job Ticket, Working Mechanical, and Review Tray as three persistent zones.
+- Green — approving `proposal-resin` changes V03 → V04, places the proposal on the Board Outline, records a receipt, and Undo returns the board to three items with the proposal pending.
+- Green — no `document.modelContext` renders the explicit `WebMCP preview` status.
+- Green — at widths below 1050px the Brief and Review Tray are named dockable drawers; the mechanical remains the underlying primary surface.
+- Green — at 390px the Review Tray opens by default, provenance is visible, Brief is accessible, and Board preview explicitly says that canvas editing continues on desktop.
+
+## Evidence
+
+- Hero reproduction: `.impeccable/review/hero-repro.png` — 1536 × 1024; inspected against `.impeccable/mocks/decision/model-pick.webp` for the three-zone topology, wheat/paper material, carbon chrome, blue construction marks, taped poster, and proposal rail.
+- Desktop: `.impeccable/review/desktop.png` — 1280 × 900.
+- Mobile: `.impeccable/review/mobile.png` — 390 × 844.
+- All three PNGs were validated with `sips`; dimensions match the captured viewports.
+
+## Live browser checks
+
+- Isolated Playwright/Chromium profile against `http://127.0.0.1:3000`.
+- Console errors/warnings: 0.
+- Failed network responses: 0.
+- Accessibility: the phone review tray was visible by default; 12 button controls and 170 nodes in Chrome's accessibility tree were present. Named landmarks and the three-zone flow are asserted in E2E.
+- Next dev origin: `allowedDevOrigins: ['127.0.0.1']` matches the local proof host; no browser-side origin warning observed.
+
+## Detector
+
+- Command (run exactly once after captures): `node /Users/tarikmoody/.agents/skills/impeccable/scripts/detect.mjs --json app/globals.css components/iterum-workspace.tsx components/campaign-job-ticket.tsx components/review/review-tray.tsx components/top-toolbar.tsx`
+- Result: `[]` (no mechanical findings).
+
+## Checks
+
+- `npm run typecheck` — pass.
+- `npm test` — pass, 26 tests.
+- `npm run test:e2e` — pass, 3 tests.
+- `npm run build` — pass.
+
+## Commit
+
+- Pending final commit.
+
+## Concerns
+
+- The terminal itself emits Node `NO_COLOR` / `FORCE_COLOR` environment warnings while Playwright starts its server; they are not browser console warnings and do not appear in the application capture.
