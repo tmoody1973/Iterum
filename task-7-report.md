@@ -37,7 +37,7 @@
 
 ## Commit
 
-- Pending final commit.
+- `d3395b9d472aa965c3510d5ae417f23dba3b76c7` — `Finish Iterum browser proof`.
 
 ## Concerns
 
