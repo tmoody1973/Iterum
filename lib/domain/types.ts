@@ -54,6 +54,7 @@ export type UndoEffect =
   | { type: 'proposal'; proposalId: string; placedItemId?: string }
   | { type: 'placement-policy'; previous: PlacementPolicy }
   | { type: 'move'; itemId: string; previousPosition: Point }
+  | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
 export interface ActionReceipt {
   id: string
@@ -99,6 +100,7 @@ export type WorkspaceCommand =
     })
   | (CommandBase & { type: 'set-placement-policy'; placementPolicy: PlacementPolicy })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
+  | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
 
 export type CommandErrorCode =

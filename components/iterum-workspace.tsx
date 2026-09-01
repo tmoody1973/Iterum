@@ -3,22 +3,29 @@
 import { Check, LockKeyhole } from 'lucide-react'
 
 import { useWorkspaceSnapshot } from '../hooks/use-workspace-snapshot'
+import { demoRuntime } from '../lib/domain/demo-runtime'
+import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
 import { useUiStore } from '../stores/ui-store'
 import { BottomModeBar } from './bottom-mode-bar'
 import { CampaignJobTicket } from './campaign-job-ticket'
 import { TopToolbar } from './top-toolbar'
+import { BoardOutline } from './mechanical/board-outline'
+import { MechanicalCanvas } from './mechanical/mechanical-canvas-loader'
+import { MechanicalToolbar } from './mechanical/mechanical-toolbar'
+import { useContainerSize } from '../hooks/use-container-size'
+import { useRef } from 'react'
 
-function BoardReference({ item }: { item: ReturnType<typeof useWorkspaceSnapshot>['boardItems'][number] }) {
-  return <figure className="board-reference" style={{ left: `${item.position.x / 10}%`, top: `${item.position.y / 6.4}%` }}>
-    {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
-    <figcaption>{item.title}<span><LockKeyhole aria-hidden="true" />Locked</span></figcaption>
-  </figure>
-}
-
-export function IterumWorkspace() {
-  const snapshot = useWorkspaceSnapshot()
+export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
+  const workspaceRuntime = runtime ?? demoRuntime
+  const snapshot = useWorkspaceSnapshot(workspaceRuntime)
   const activeRightTab = useUiStore((state) => state.activeRightTab)
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
+  const activeTool = useUiStore((state) => state.activeTool)
+  const setActiveTool = useUiStore((state) => state.setActiveTool)
+  const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
+  const selectBoardItem = useUiStore((state) => state.selectBoardItem)
+  const canvasHost = useRef<HTMLDivElement>(null)
+  const canvasSize = useContainerSize(canvasHost)
   const proposal = snapshot.proposals[0]
   const versionLabel = `V${String(snapshot.version).padStart(2, '0')}`
 
@@ -29,10 +36,13 @@ export function IterumWorkspace() {
         <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
+          <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
           <div className="ruler ruler-top" aria-hidden="true" />
           <section className="pasteboard" aria-label="Static Bloom campaign board">
             <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
-            {snapshot.boardItems.map((item) => <BoardReference item={item} key={item.id} />)}
+            <div className="mechanical-canvas-host" ref={canvasHost} aria-hidden="true">
+              {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />}
+            </div>
             <article className="poster-proof">
               <span className="tape tape-top" aria-hidden="true" />
               <p className="poster-brand">ITERUM</p><p className="poster-campaign">Static bloom</p>
@@ -44,6 +54,7 @@ export function IterumWorkspace() {
             </article>
             <div className="color-strip" aria-label="Campaign color control strip">{['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d'].map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
           </section>
+          <BoardOutline snapshot={snapshot} runtime={workspaceRuntime} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />
           <section className="approval-receipt" aria-label="Latest action receipt"><span className="receipt-check"><Check aria-hidden="true" /></span><p><strong>REF_02_CRUSHED_IRIS.TIF</strong> approved and placed on poster.<small>Placed at X: 25.14 in · Y: 14.28 in · Scale: 48% · Layer: IMG_REF_02</small></p><button type="button">Undo</button></section>
         </main>
         <aside className="review-tray" aria-label="Review tray">

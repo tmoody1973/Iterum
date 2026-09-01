@@ -41,6 +41,26 @@ describe('applyWorkspaceCommand', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'LOCKED_REFERENCE' }, state: initial })
   })
 
+  it('persists resize dimensions and protects locked references', () => {
+    const initial = createDemoWorkspaceState()
+    const locked = initial.boardItems[0]
+    const blocked = applyWorkspaceCommand(initial, {
+      type: 'resize-board-item', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'resize-locked', actor: 'designer', itemId: locked.id, width: 320, height: 420,
+    })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'LOCKED_REFERENCE' } })
+
+    const editable = { ...initial, boardItems: initial.boardItems.map((item, index) => index === 0 ? { ...item, locked: false } : item) }
+    const resized = applyWorkspaceCommand(editable, {
+      type: 'resize-board-item', campaignId: editable.campaign.id, boardId: editable.campaign.boardId,
+      expectedVersion: editable.version, idempotencyKey: 'resize-editable', actor: 'designer', itemId: locked.id, width: 320, height: 420,
+    })
+    expect(resized.ok).toBe(true)
+    if (!resized.ok) return
+    expect(resized.state.boardItems[0]).toMatchObject({ width: 320, height: 420 })
+    expect(resized.receipt.undo?.type).toBe('resize')
+  })
+
   it('rejects without placing an item', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, {

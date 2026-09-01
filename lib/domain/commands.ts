@@ -88,6 +88,11 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
         ...state,
         boardItems: state.boardItems.map((item) => item.id === effect.itemId ? { ...item, position: effect.previousPosition } : item),
       }
+    case 'resize':
+      return {
+        ...state,
+        boardItems: state.boardItems.map((item) => item.id === effect.itemId ? { ...item, width: effect.previousSize.width, height: effect.previousSize.height } : item),
+      }
   }
 }
 
@@ -171,6 +176,15 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
       return success(
         { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, position: { ...command.position } } : candidate) },
         command, `Moved ${item.title}.`, { type: 'move', itemId: item.id, previousPosition: item.position },
+      )
+    }
+    case 'resize-board-item': {
+      const item = state.boardItems.find((candidate) => candidate.id === command.itemId)
+      if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The board item no longer exists.')
+      if (item.locked) return failure(state, 'LOCKED_REFERENCE', 'Locked references cannot be resized.')
+      return success(
+        { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, width: command.width, height: command.height } : candidate) },
+        command, `Resized ${item.title}.`, { type: 'resize', itemId: item.id, previousSize: { width: item.width, height: item.height } },
       )
     }
     case 'undo-receipt': {
