@@ -26,10 +26,22 @@ describe('WorkspaceRuntime', () => {
     expect(listener).toHaveBeenCalledOnce()
     expect(runtime.getSnapshot()).toBe(success.state)
 
+    if (!success.ok) return
+    const beforeReplay = runtime.getSnapshot()
+    const replay = runtime.dispatch({
+      type: 'reject-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: beforeReplay.version, idempotencyKey: 'reject', actor: 'designer', proposalId: 'proposal-resin',
+    })
+    expect(replay.ok).toBe(true)
+    expect(runtime.getSnapshot()).toBe(beforeReplay)
+    expect(runtime.getSnapshot().version).toBe(beforeReplay.version)
+    expect(runtime.getSnapshot().receipts).toHaveLength(beforeReplay.receipts.length)
+    expect(listener).toHaveBeenCalledOnce()
+
     unsubscribe()
     runtime.dispatch({
       type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
-      expectedVersion: runtime.getSnapshot().version, idempotencyKey: 'undo', actor: 'designer', receiptId: success.ok ? success.receipt.id : '',
+      expectedVersion: runtime.getSnapshot().version, idempotencyKey: 'undo', actor: 'designer', receiptId: success.receipt.id,
     })
     expect(listener).toHaveBeenCalledOnce()
   })

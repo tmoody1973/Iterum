@@ -19,7 +19,7 @@ export function createWorkspaceRuntime(initialState: WorkspaceState): WorkspaceR
     },
     dispatch(command) {
       const result = applyWorkspaceCommand(snapshot, command)
-      if (result.ok) {
+      if (result.ok && result.state !== snapshot) {
         snapshot = result.state
         listeners.forEach((listener) => listener())
       }

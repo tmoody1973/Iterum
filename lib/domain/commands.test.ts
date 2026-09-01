@@ -68,6 +68,14 @@ describe('applyWorkspaceCommand', () => {
 
   it('requires an explicit direct-placement policy grant', () => {
     const initial = createDemoWorkspaceState()
+    const invalidPolicy = applyWorkspaceCommand(initial, {
+      type: 'set-placement-policy', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'invalid-direct-territory', actor: 'designer',
+      placementPolicy: { allowAgentDirectPlacement: true, directPlacementTerritory: 'Editorial spread' },
+    })
+    expect(invalidPolicy).toMatchObject({ ok: false, error: { code: 'INVALID_PLACEMENT_POLICY' }, state: initial })
+    expect(invalidPolicy.state).toBe(initial)
+
     const proposed = applyWorkspaceCommand(initial, {
       type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
       expectedVersion: initial.version, idempotencyKey: 'agent-proposal', actor: 'agent',

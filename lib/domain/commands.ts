@@ -15,6 +15,7 @@ import type {
 } from './types'
 
 const PROCESSED_COMMAND_LIMIT = 100
+const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
 
 function failure(state: WorkspaceState, code: CommandErrorCode, message: string): CommandFailure {
   return { ok: false, state, error: { code, message } }
@@ -154,6 +155,9 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
       )
     }
     case 'set-placement-policy': {
+      if (command.placementPolicy.directPlacementTerritory !== AGENT_ADDITIONS_TERRITORY) {
+        return failure(state, 'INVALID_PLACEMENT_POLICY', `Direct placement is restricted to ${AGENT_ADDITIONS_TERRITORY}.`)
+      }
       const nextPolicy: PlacementPolicy = { ...command.placementPolicy }
       return success(
         { ...state, placementPolicy: nextPolicy }, command, 'Updated the board placement policy.',
