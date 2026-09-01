@@ -1,5 +1,6 @@
 .impeccable/questions/
 .impeccable/config.local.json
+.worktrees/
 .DS_Store
 node_modules/
 .next/
