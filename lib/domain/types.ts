@@ -115,6 +115,7 @@ export type CommandErrorCode =
   | 'INVALID_PLACEMENT_POLICY'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
+  | 'DESIGNER_REVIEW_REQUIRED'
 
 export interface CommandSuccess {
   ok: true

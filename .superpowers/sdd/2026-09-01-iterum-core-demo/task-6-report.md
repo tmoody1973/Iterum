@@ -28,3 +28,12 @@ The local declaration now matches the current WebMCP shape: `registerTool` retur
 - Proposed source/image URLs are runtime-validated as HTTP(S); rendered source links use `target="_blank" rel="noreferrer"`.
 - The designer-controlled direct-placement toggle is off by default, creates a receipt, and remains constrained by the existing domain rule to `Agent Additions`.
 - No provider/network calls were introduced. Commit hash: pending.
+
+## Review fix round 1/5
+
+- Addressed: 5 (all 4 Important findings and the unused-helper Minor); open: 0; new: 0.
+- Agent approval now requires the canonical direct-placement policy, is forced to `Agent Additions`, and reports that actual territory in its receipt. Agent rejection is a non-mutating `DESIGNER_REVIEW_REQUIRED` review request; agents may only undo receipts they created.
+- Runtime input parsing now rejects unknown top-level/nested fields, non-finite or over-specified points, credentialed/malformed/private/loopback/link-local URLs, and invalid proposal input before dispatch.
+- All five tools are marked untrusted where their output can contain sourced content; read-only semantics now reflect the non-mutating rejection request.
+- Registration aborts the shared controller on partial failure; tests assert the exact signal supplied to every registration and lifecycle-unmount cleanup.
+- Verification: `/usr/local/bin/npm test -- components/review lib/webmcp lib/domain` (18 passed), `/usr/local/bin/npm run typecheck`, and `/usr/local/bin/npm run build`.

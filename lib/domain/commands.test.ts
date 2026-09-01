@@ -120,6 +120,31 @@ describe('applyWorkspaceCommand', () => {
     expect(allowed.state.boardItems.some((item) => item.sourceProposalId === 'proposal-direct' && item.territory === 'Agent Additions')).toBe(true)
   })
 
+  it('requires agent approval policy and forces agent approvals to Agent Additions', () => {
+    const initial = createDemoWorkspaceState()
+    const blocked = applyWorkspaceCommand(initial, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-approve-blocked', actor: 'agent', proposalId: 'proposal-resin' })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DIRECT_PLACEMENT_NOT_ALLOWED' } })
+    const granted = applyWorkspaceCommand(initial, { type: 'set-placement-policy', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-approve-policy', actor: 'designer', placementPolicy: { allowAgentDirectPlacement: true, directPlacementTerritory: 'Agent Additions' } })
+    expect(granted.ok).toBe(true)
+    if (!granted.ok) return
+    const approved = applyWorkspaceCommand(granted.state, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: granted.state.version, idempotencyKey: 'agent-approve-allowed', actor: 'agent', proposalId: 'proposal-resin' })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.state.boardItems.at(-1)?.territory).toBe('Agent Additions')
+    expect(approved.receipt.summary).toContain('Agent Additions')
+  })
+
+  it('does not allow an agent to reject or undo a designer receipt', () => {
+    const initial = createDemoWorkspaceState()
+    const rejected = applyWorkspaceCommand(initial, { type: 'reject-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-reject', actor: 'agent', proposalId: 'proposal-resin' })
+    expect(rejected).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const approved = applyWorkspaceCommand(initial, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'designer-approval', actor: 'designer', proposalId: 'proposal-resin' })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    const undone = applyWorkspaceCommand(approved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: approved.state.version, idempotencyKey: 'agent-undo-designer', actor: 'agent', receiptId: approved.receipt.id })
+    expect(undone).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+  })
+
   it('undoes an approval with a compensating command and a new receipt', () => {
     const initial = createDemoWorkspaceState()
     const approved = applyWorkspaceCommand(initial, {

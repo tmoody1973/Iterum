@@ -113,19 +113,24 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
 
   switch (command.type) {
     case 'approve-proposal': {
+      if (command.actor === 'agent' && !state.placementPolicy.allowAgentDirectPlacement) {
+        return failure(state, 'DIRECT_PLACEMENT_NOT_ALLOWED', 'Designer review is required before agent placement.')
+      }
       const proposal = state.proposals.find((item) => item.id === command.proposalId)
       if (!proposal) return failure(state, 'PROPOSAL_NOT_FOUND', 'The proposal no longer exists.')
       if (proposal.status !== 'pending') return failure(state, 'PROPOSAL_NOT_PENDING', 'Only pending proposals can be approved.')
       const itemId = crypto.randomUUID()
-      const placedItem = placementForProposal(proposal, itemId, command.position ?? { x: 1040, y: 120 })
+      const placementTerritory = command.actor === 'agent' ? AGENT_ADDITIONS_TERRITORY : proposal.intendedTerritory
+      const placedItem = placementForProposal({ ...proposal, intendedTerritory: placementTerritory }, itemId, command.position ?? { x: 1040, y: 120 })
       return success(
         { ...withProposalStatus(state, proposal.id, 'approved'), boardItems: [...state.boardItems, placedItem] },
         command,
-        `Approved ${proposal.title} onto ${proposal.intendedTerritory}.`,
+        `Approved ${proposal.title} onto ${placementTerritory}.`,
         { type: 'approval', proposalId: proposal.id, previousStatus: proposal.status, placedItemId: itemId },
       )
     }
     case 'reject-proposal': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can reject a proposal.')
       const proposal = state.proposals.find((item) => item.id === command.proposalId)
       if (!proposal) return failure(state, 'PROPOSAL_NOT_FOUND', 'The proposal no longer exists.')
       if (proposal.status !== 'pending') return failure(state, 'PROPOSAL_NOT_PENDING', 'Only pending proposals can be rejected.')
@@ -193,6 +198,7 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
       if (!target.undoable || !target.undo || state.receipts.some((receipt) => receipt.revertsReceiptId === target.id)) {
         return failure(state, 'UNDO_UNAVAILABLE', 'This action can no longer be undone.')
       }
+      if (command.actor === 'agent' && target.actor !== 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'An agent can only undo its own action receipts.')
       const compensated = applyUndoEffect(state, target.undo)
       return success(
         compensated, command, `Undid: ${target.summary}`, undefined, target.id,
