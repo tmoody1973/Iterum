@@ -29,21 +29,44 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const setBriefDrawerOpen = useUiStore((state) => state.setBriefDrawerOpen)
   const setReviewDrawerOpen = useUiStore((state) => state.setReviewDrawerOpen)
   const canvasHost = useRef<HTMLDivElement>(null)
+  const briefTriggerRef = useRef<HTMLButtonElement>(null)
+  const reviewTriggerRef = useRef<HTMLButtonElement>(null)
   const canvasSize = useContainerSize(canvasHost)
   const versionLabel = `V${String(snapshot.version).padStart(2, '0')}`
 
   useEffect(() => {
-    if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches) setReviewDrawerOpen(true)
-  }, [setReviewDrawerOpen])
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(max-width: 760px)')
+    const syncDrawerForViewport = () => {
+      setBriefDrawerOpen(false)
+      setReviewDrawerOpen(media.matches)
+    }
+    syncDrawerForViewport()
+    media.addEventListener('change', syncDrawerForViewport)
+    return () => media.removeEventListener('change', syncDrawerForViewport)
+  }, [setBriefDrawerOpen, setReviewDrawerOpen])
+
+  const closeBrief = () => {
+    setBriefDrawerOpen(false)
+    requestAnimationFrame(() => briefTriggerRef.current?.focus())
+  }
+  const closeReview = () => {
+    setReviewDrawerOpen(false)
+    requestAnimationFrame(() => reviewTriggerRef.current?.focus())
+  }
 
   return (
     <div className={`workspace${isBriefDrawerOpen ? ' is-brief-drawer-open' : ''}${isReviewDrawerOpen ? ' is-review-drawer-open' : ''}`} data-testid="iterum-workspace">
       <TopToolbar
         onOpenBrief={() => { setReviewDrawerOpen(false); setBriefDrawerOpen(true) }}
         onOpenReview={() => { setBriefDrawerOpen(false); setReviewDrawerOpen(true) }}
+        briefExpanded={isBriefDrawerOpen}
+        reviewExpanded={isReviewDrawerOpen}
+        briefTriggerRef={briefTriggerRef}
+        reviewTriggerRef={reviewTriggerRef}
       />
       <div className="desk-zones">
-        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={() => setBriefDrawerOpen(false)} />
+        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={closeBrief} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
@@ -68,7 +91,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           <ActionReceipt receipt={snapshot.receipts[0]} runtime={workspaceRuntime} />
           <p className="board-preview-notice">Board preview · canvas editing continues on desktop</p>
         </main>
-        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setReviewDrawerOpen(false)} />
+        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={closeReview} />
       </div>
       <BottomModeBar version={snapshot.version} />
     </div>

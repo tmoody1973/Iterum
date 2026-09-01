@@ -1,5 +1,7 @@
 'use client'
 
+import type { RefObject } from 'react'
+
 import { useUiStore } from '../stores/ui-store'
 
 const tools = [
@@ -10,7 +12,14 @@ const tools = [
   ['annotate', 'Annotate'],
 ] as const
 
-export function TopToolbar({ onOpenBrief, onOpenReview }: { onOpenBrief: () => void; onOpenReview: () => void }) {
+export function TopToolbar({ onOpenBrief, onOpenReview, briefExpanded, reviewExpanded, briefTriggerRef, reviewTriggerRef }: {
+  onOpenBrief: () => void
+  onOpenReview: () => void
+  briefExpanded: boolean
+  reviewExpanded: boolean
+  briefTriggerRef: RefObject<HTMLButtonElement | null>
+  reviewTriggerRef: RefObject<HTMLButtonElement | null>
+}) {
   const activeTool = useUiStore((state) => state.activeTool)
   const setActiveTool = useUiStore((state) => state.setActiveTool)
 
@@ -34,8 +43,8 @@ export function TopToolbar({ onOpenBrief, onOpenReview }: { onOpenBrief: () => v
         ))}
       </nav>
       <div className="drawer-controls" aria-label="Workspace panels">
-        <button type="button" aria-controls="campaign-job-ticket" onClick={onOpenBrief}>Brief</button>
-        <button type="button" aria-controls="review-tray" onClick={onOpenReview}>Review tray</button>
+        <button ref={briefTriggerRef} type="button" aria-controls="campaign-job-ticket" aria-expanded={briefExpanded} onClick={onOpenBrief}>Brief</button>
+        <button ref={reviewTriggerRef} type="button" aria-controls="review-tray" aria-expanded={reviewExpanded} onClick={onOpenReview}>Review tray</button>
       </div>
       <div className="view-readout"><span>View</span> Mechanical</div>
     </header>

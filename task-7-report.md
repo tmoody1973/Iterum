@@ -14,6 +14,7 @@
 - Desktop: `.impeccable/review/desktop.png` — 1280 × 900.
 - Mobile: `.impeccable/review/mobile.png` — 390 × 844.
 - All three PNGs were validated with `sips`; dimensions match the captured viewports.
+- Final evidence was recaptured from the production build at `http://127.0.0.1:3333`, after the receipt-layer correction, so it contains no Next.js development badge. The detector belongs to the earlier capture pass; it was intentionally not rerun after this production recapture.
 
 ## Live browser checks
 
@@ -25,7 +26,7 @@
 
 ## Detector
 
-- Command (run exactly once after captures): `node /Users/tarikmoody/.agents/skills/impeccable/scripts/detect.mjs --json app/globals.css components/iterum-workspace.tsx components/campaign-job-ticket.tsx components/review/review-tray.tsx components/top-toolbar.tsx`
+- Command (ran once in the initial capture pass): `node /Users/tarikmoody/.agents/skills/impeccable/scripts/detect.mjs --json app/globals.css components/iterum-workspace.tsx components/campaign-job-ticket.tsx components/review/review-tray.tsx components/top-toolbar.tsx`
 - Result: `[]` (no mechanical findings).
 
 ## Checks
