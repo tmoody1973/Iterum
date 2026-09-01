@@ -8,7 +8,7 @@ export function createDemoWorkspaceState(): WorkspaceState {
       deliverables: ['Campaign direction board', 'Source-aware reference set', 'Direction brief'],
       constraints: ['Keep three client references locked', 'Review agent discoveries before placement'],
     },
-    version: 1,
+    version: 3,
     placementPolicy: { allowAgentDirectPlacement: false, directPlacementTerritory: 'Agent Additions' },
     boardItems: [
       { id: 'reference-concrete', title: 'Wet concrete / sodium reflection', kind: 'reference', imageUrl: '/assets/ref-wet-concrete.webp', territory: 'Material tension', position: { x: 56, y: 62 }, width: 276, height: 356, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },

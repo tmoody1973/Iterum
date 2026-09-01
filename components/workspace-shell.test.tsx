@@ -12,6 +12,7 @@ describe('Iterum workspace shell', () => {
     expect(screen.getByRole('main', { name: /working mechanical/i })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: /review tray/i })).toBeInTheDocument()
     expect(screen.getAllByText(/static bloom/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/V03/).length).toBeGreaterThan(0)
     expect(screen.getByText(/webmcp/i)).toBeInTheDocument()
   })
 })

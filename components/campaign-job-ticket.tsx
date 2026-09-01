@@ -1,3 +1,5 @@
+import { LockKeyhole, Paperclip } from 'lucide-react'
+
 import type { Campaign, WorkspaceState } from '../lib/domain/types'
 
 function TicketField({ label, value }: { label: string; value: string }) {
@@ -41,9 +43,9 @@ export function CampaignJobTicket({ campaign, version }: { campaign: Campaign; v
       </section>
       <section className="attachments" aria-labelledby="attachments-title">
         <h2 id="attachments-title">Attachments (3)</h2>
-        <ul><li>STATIC_BLOOM_BRIEF.pdf</li><li>STATIC_BLOOM_COPY.txt</li><li>MOOD_NOTES.vrt</li></ul>
+        <ul><li><Paperclip aria-hidden="true" />STATIC_BLOOM_BRIEF.pdf</li><li><Paperclip aria-hidden="true" />STATIC_BLOOM_COPY.txt</li><li><Paperclip aria-hidden="true" />MOOD_NOTES.vrt</li></ul>
       </section>
-      <footer className="ticket-footer"><span>▣ Ticket locked</span><button type="button">Edit locked fields</button></footer>
+      <footer className="ticket-footer"><span><LockKeyhole aria-hidden="true" />Ticket locked</span><button type="button">Edit locked fields</button></footer>
     </aside>
   )
 }
