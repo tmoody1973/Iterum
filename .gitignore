@@ -4,5 +4,8 @@
 .DS_Store
 node_modules/
 .next/
+.vitest/
+.playwright/
+*.tsbuildinfo
 .env*
 !.env.example
