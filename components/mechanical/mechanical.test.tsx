@@ -5,7 +5,7 @@ import { createDemoWorkspaceState } from '../../lib/domain/demo-data'
 import { createWorkspaceRuntime } from '../../lib/domain/workspace-runtime'
 import { useUiStore } from '../../stores/ui-store'
 import { BoardOutline } from './board-outline'
-import { restoreNodeFromItem } from './mechanical-canvas'
+import { restoreNodeFromItem, restoreNodeFromRuntime } from './mechanical-canvas'
 import { referenceFilename, referenceSourceClass } from './reference-node'
 
 function renderOutline() {
@@ -65,9 +65,28 @@ describe('mechanical DOM mirror', () => {
       x: (value: number) => { calls.push(['x', value]); return value }, y: (value: number) => { calls.push(['y', value]); return value },
       width: (value: number) => { calls.push(['width', value]); return value }, height: (value: number) => { calls.push(['height', value]); return value },
       scaleX: (value: number) => { calls.push(['scaleX', value]); return value }, scaleY: (value: number) => { calls.push(['scaleY', value]); return value },
-      getLayer: () => ({ batchDraw: () => calls.push(['batchDraw', 1]) }),
+      getLayer: () => ({ batchDraw: () => calls.push(['batchDraw', 1]) }), remove: () => undefined,
     }
     restoreNodeFromItem(node as never, item)
     expect(calls).toEqual([['x', 56], ['y', 62], ['width', 276], ['height', 356], ['scaleX', 1], ['scaleY', 1], ['batchDraw', 1]])
+  })
+
+  it('uses newer runtime geometry for a version-conflicted rollback', () => {
+    const initial = createDemoWorkspaceState()
+    const item = { ...initial.boardItems[0], locked: false }
+    const runtime = createWorkspaceRuntime({ ...initial, boardItems: [item, ...initial.boardItems.slice(1)] })
+    const accepted = runtime.dispatch({ type: 'move-board-item', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'newer-move', actor: 'designer', itemId: item.id, position: { x: 190, y: 210 } })
+    expect(accepted.ok).toBe(true)
+    const rejected = runtime.dispatch({ type: 'move-board-item', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'stale-move', actor: 'designer', itemId: item.id, position: { x: 500, y: 500 } })
+    expect(rejected).toMatchObject({ ok: false, error: { code: 'VERSION_CONFLICT' } })
+    const calls: Array<[string, number]> = []
+    const node = {
+      x: (value: number) => { calls.push(['x', value]); return value }, y: (value: number) => { calls.push(['y', value]); return value },
+      width: (value: number) => { calls.push(['width', value]); return value }, height: (value: number) => { calls.push(['height', value]); return value },
+      scaleX: (value: number) => { calls.push(['scaleX', value]); return value }, scaleY: (value: number) => { calls.push(['scaleY', value]); return value },
+      getLayer: () => ({ batchDraw: () => calls.push(['batchDraw', 1]) }), remove: () => undefined,
+    }
+    expect(restoreNodeFromRuntime(node as never, runtime, item.id)).toBe(true)
+    expect(calls.slice(0, 2)).toEqual([['x', 190], ['y', 210]])
   })
 })

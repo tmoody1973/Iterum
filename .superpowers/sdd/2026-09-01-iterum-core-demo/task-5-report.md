@@ -45,3 +45,10 @@ The mechanical needs canonical resize persistence, so Task 5 extends the version
 - Addressed all 3 Important findings and the 1 Minor finding: unlocked board-outline resize controls now dispatch the canonical resize command; locked resize controls are disabled; canvas labels now include derived filename and source class; rejected drag/resize commands restore and redraw canonical Konva geometry; clearing selection uses `null`.
 - Added focused coverage for outline resize controls, lock-disabled resize controls, provenance derivation, and geometry rollback. Green: `/usr/local/bin/npm test -- components/mechanical lib/domain` — 15 passing tests; typecheck and build also pass.
 - Open issues: 0. New issues: 0.
+
+## Review fix round 2
+
+- Rejected move and resize commands now re-read `runtime.getSnapshot()` and restore the current canonical board item. If that item no longer exists, its Konva node is removed, the Transformer is detached, and selection clears.
+- Added a stale-version regression test that accepts a newer move, rejects a stale move, and verifies rollback uses the newer runtime coordinates.
+- Green: mechanical + domain tests (16 passing), typecheck, and build.
+- Addressed: 1. Open: 0. New: 0.

@@ -8,7 +8,7 @@ import type { WorkspaceRuntime } from '../../lib/domain/workspace-runtime'
 import type { BoardItem, WorkspaceState } from '../../lib/domain/types'
 import { ReferenceNode } from './reference-node'
 
-type RestorableNode = Pick<Konva.Group, 'x' | 'y' | 'width' | 'height' | 'scaleX' | 'scaleY' | 'getLayer'>
+type RestorableNode = Pick<Konva.Group, 'x' | 'y' | 'width' | 'height' | 'scaleX' | 'scaleY' | 'getLayer' | 'remove'>
 
 /** Reconciles an imperatively changed Konva node after a rejected canonical command. */
 export function restoreNodeFromItem(node: RestorableNode, item: BoardItem) {
@@ -21,10 +21,29 @@ export function restoreNodeFromItem(node: RestorableNode, item: BoardItem) {
   node.getLayer()?.batchDraw()
 }
 
+/** Reads the authoritative state after a rejected command, never the stale render closure. */
+export function restoreNodeFromRuntime(node: RestorableNode, runtime: WorkspaceRuntime, itemId: string) {
+  const currentItem = runtime.getSnapshot().boardItems.find((item) => item.id === itemId)
+  if (currentItem) {
+    restoreNodeFromItem(node, currentItem)
+    return true
+  }
+  node.remove()
+  node.getLayer()?.batchDraw()
+  return false
+}
+
 export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId, onSelect }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; width: number; height: number; selectedId: string | null; onSelect: (id: string | null) => void }) {
   const transformerRef = useRef<Konva.Transformer>(null)
   const nodes = useRef(new Map<string, Konva.Group>())
   const selected = snapshot.boardItems.find((item) => item.id === selectedId)
+  const rollback = (node: Konva.Group, itemId: string) => {
+    if (!restoreNodeFromRuntime(node, runtime, itemId)) {
+      nodes.current.delete(itemId)
+      transformerRef.current?.nodes([])
+      onSelect(null)
+    }
+  }
   useEffect(() => {
     const node = selectedId ? nodes.current.get(selectedId) : undefined
     if (transformerRef.current) transformerRef.current.nodes(node && selected && !selected.locked ? [node] : [])
@@ -34,7 +53,7 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
       type: 'move-board-item', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version,
       idempotencyKey: crypto.randomUUID(), actor: 'designer', itemId: item.id, position,
     })
-    if (!result.ok) restoreNodeFromItem(node, item)
+    if (!result.ok) rollback(node, item.id)
     return result
   }
   const bakeTransform = () => {
@@ -48,7 +67,7 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
       type: 'resize-board-item', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version,
       idempotencyKey: crypto.randomUUID(), actor: 'designer', itemId: selectedId!, width, height,
     })
-    if (!result.ok) restoreNodeFromItem(node, selected)
+    if (!result.ok) rollback(node, selected.id)
     return result
   }
   return <Stage width={width} height={height} onMouseDown={(event) => { if (event.target === event.target.getStage()) onSelect(null) }}>
