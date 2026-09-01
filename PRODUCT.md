@@ -16,7 +16,8 @@ web
 - Fontsource API as the primary freely embeddable font catalog
 - Google Fonts Developer API as secondary font discovery and ranking metadata
 - Unsplash API as the built-in source for licensable photographic references
-- Provider-agnostic broad-web discovery through browser-agent research and sourced URL submission
+- SerpAPI Google Images as the optional broad-web discovery provider for posters, typography, packaging, materials, editorial layouts, and campaign references
+- Browser-agent research and sourced URL submission for targeted references
 - Yjs with Liveblocks, or Liveblocks Storage, may be evaluated later for collaboration; the MVP is single-user
 
 ## Users
@@ -52,7 +53,7 @@ The product's defining interaction is the visible transition from agent proposal
 ### Core WebMCP capabilities
 
 - Read the campaign context, board state, board version, review tray, and placement policy.
-- Search photographic references through Unsplash and submit sourced URLs discovered through broader browser research.
+- Search reusable photographic references through Unsplash, discover broader visual references through SerpAPI Google Images, and accept sourced URLs from browser-agent research.
 - Add uploaded images, sketches, links, materials, products, screenshots, and notes.
 - Capture a public URL automatically, then let the designer crop it in the app. Preserve the original capture and store crop coordinates separately.
 - Propose references to the Review Tray with source, attribution, rationale, category, and proposed territory.
@@ -70,6 +71,9 @@ The product's defining interaction is the visible transition from agent proposal
 - Search results and provider payloads are untrusted and normalized on the server.
 - Unsplash images use the returned hotlinked URLs and required attribution. Selection-like actions trigger the provider's download-tracking endpoint.
 - Google Custom Search JSON API is not a dependency because it is closed to new customers and scheduled for discontinuation.
+- SerpAPI credentials remain server-side. Queries use safe search, normal provider caching, bounded result counts, and license filters when requested.
+- SerpAPI results preserve the preview, hosting page, publisher, original dimensions, license claim, and license-details URL when available. License metadata is evidence, not a guarantee; the hosting page remains authoritative.
+- Broad-web originals are never downloaded automatically. Results with uncertain rights remain reference-only and are excluded from public exports unless the designer verifies reuse rights.
 - Broad-web results are discovery references: preserve the hosting page, creator and rights information when available, and do not imply reuse rights.
 - URL capture blocks private-network targets and reports authenticated, paywalled, blocked, or failed captures clearly.
 - Provider failures degrade to cached or partial results without damaging board state.
