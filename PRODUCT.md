@@ -1,4 +1,4 @@
-# CampaignCanvas
+# Iterum
 
 <!-- impeccable:product-schema 1 -->
 
@@ -28,13 +28,13 @@ Collaboration is explicitly deferred. A future Designer role may allow every des
 
 ## Product Purpose
 
-CampaignCanvas is an agent-readable visual-direction workspace. It helps a graphic designer collect references, review agent research, organize approved material into campaign territories, analyze color and typography, identify gaps, and export a coherent creative-direction brief.
+Iterum is an agent-readable visual-direction workspace. It helps a graphic designer collect references, review agent research, organize approved material into campaign territories, analyze color and typography, identify gaps, and export a coherent creative-direction brief.
 
 Success means a designer can move from a campaign brief and a few taste-setting references to a sourced, reviewable, editable direction without reconciling disconnected chat suggestions, browser tabs, screenshots, and font searches by hand.
 
 ## Positioning
 
-CampaignCanvas is not a generic moodboard with a chatbot beside it. The canvas itself exposes typed WebMCP capabilities. A browser agent reads the same brief, items, approval states, locks, territories, sources, and versions that the designer sees, then performs reversible actions on that durable workspace.
+Iterum is not a generic moodboard with a chatbot beside it. The canvas itself exposes typed WebMCP capabilities. A browser agent reads the same brief, items, approval states, locks, territories, sources, and versions that the designer sees, then performs reversible actions on that durable workspace.
 
 The product's defining interaction is the visible transition from agent proposal, to designer approval, to an organized campaign territory with a human-readable action receipt.
 
@@ -80,7 +80,7 @@ The product's defining interaction is the visible transition from agent proposal
 
 ## Brand Commitments
 
-- Working product name: **CampaignCanvas**. The final name remains open.
+- Product name: **Iterum**.
 - Primary user term: **Designer**.
 - Primary artifact terms: **Campaign**, **Board**, **Review Tray**, **Reference**, **Visual Territory**, and **Action Receipt**.
 - Voice should be precise, visually literate, respectful of professional judgment, and free of AI hype.
