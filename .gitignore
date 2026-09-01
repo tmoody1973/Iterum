@@ -1,0 +1,7 @@
+.impeccable/questions/
+.impeccable/config.local.json
+.DS_Store
+node_modules/
+.next/
+.env*
+!.env.example
