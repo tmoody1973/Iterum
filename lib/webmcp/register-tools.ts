@@ -29,7 +29,7 @@ function invalid(state: WorkspaceState, message: string) { return failure(state,
 
 function mutationInput(state: WorkspaceState, input: unknown): { value: Record<string, unknown> } | { response: ToolResponse<never> } {
   if (!isObject(input) || requiredMutation.some((key) => !(key in input))) return { response: invalid(state, `A mutation requires ${requiredMutation.join(', ')}.`) }
-  if (typeof input.campaignId !== 'string' || typeof input.boardId !== 'string' || !Number.isInteger(input.expectedBoardVersion) || typeof input.idempotencyKey !== 'string' || !input.idempotencyKey) return { response: invalid(state, 'Mutation identifiers and expectedBoardVersion are invalid.') }
+  if (typeof input.campaignId !== 'string' || typeof input.boardId !== 'string' || typeof input.expectedBoardVersion !== 'number' || !Number.isInteger(input.expectedBoardVersion) || input.expectedBoardVersion < 0 || typeof input.idempotencyKey !== 'string' || !input.idempotencyKey) return { response: invalid(state, 'Mutation identifiers and expectedBoardVersion are invalid.') }
   return { value: input }
 }
 

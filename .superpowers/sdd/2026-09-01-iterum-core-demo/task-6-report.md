@@ -37,3 +37,9 @@ The local declaration now matches the current WebMCP shape: `registerTool` retur
 - All five tools are marked untrusted where their output can contain sourced content; read-only semantics now reflect the non-mutating rejection request.
 - Registration aborts the shared controller on partial failure; tests assert the exact signal supplied to every registration and lifecycle-unmount cleanup.
 - Verification: `/usr/local/bin/npm test -- components/review lib/webmcp lib/domain` (18 passed), `/usr/local/bin/npm run typecheck`, and `/usr/local/bin/npm run build`.
+
+## Review fix round 2/5
+
+- Addressed: 1; open: 0; new: 0.
+- `expectedBoardVersion` now requires a finite integer at least zero before any mutation dispatch, matching the declared JSON Schema minimum. Negative-version coverage confirms a `VALIDATION_ERROR` and no state change.
+- Verification: `/usr/local/bin/npm test -- lib/webmcp lib/domain` (16 passed), `/usr/local/bin/npm run typecheck`, and `/usr/local/bin/npm run build`.

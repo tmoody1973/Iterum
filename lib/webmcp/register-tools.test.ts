@@ -56,6 +56,9 @@ describe('registerIterumTools', () => {
     const propose = registered.find((tool) => tool.name === 'propose_reference')!
     const privateUrl = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'private', proposal: { id: 'private', title: 'Private', sourceUrl: 'http://127.0.0.1/a', attribution: 'x', rightsStatus: 'uncertain', rationale: 'x', intendedTerritory: 'x' } }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(privateUrl.error?.code).toBe('VALIDATION_ERROR')
+    const negativeVersion = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: -1, idempotencyKey: 'negative-version', proposal: { id: 'negative', title: 'Negative version', sourceUrl: 'https://example.com/a', attribution: 'x', rightsStatus: 'uncertain', rationale: 'x', intendedTerritory: 'x' } }, { signal: new AbortController().signal }) as { error?: { code: string } }
+    expect(negativeVersion.error?.code).toBe('VALIDATION_ERROR')
+    expect(work.getSnapshot().version).toBe(3)
     const reject = registered.find((tool) => tool.name === 'reject_reference')!
     const decision = await reject.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'reject', proposalId: 'proposal-resin' }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(decision.error?.code).toBe('DESIGNER_REVIEW_REQUIRED')
