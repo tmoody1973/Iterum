@@ -6,6 +6,15 @@ import type Konva from 'konva'
 
 import type { BoardItem } from '../../lib/domain/types'
 
+export function referenceFilename(item: BoardItem) {
+  const path = item.imageUrl?.split('/').pop()
+  return (path ?? item.title).replace(/-/g, '_').toUpperCase()
+}
+
+export function referenceSourceClass(item: BoardItem) {
+  return item.kind === 'agent-addition' ? 'AGENT PROPOSAL' : item.sourceUrl === 'local-demo' ? 'LOCAL SYNTHETIC' : 'EXTERNAL REFERENCE'
+}
+
 function useImage(url?: string) {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   useEffect(() => {
@@ -17,12 +26,14 @@ function useImage(url?: string) {
   return image
 }
 
-export function ReferenceNode({ item, selected, onSelect, onDragEnd, nodeRef }: { item: BoardItem; selected: boolean; onSelect: () => void; onDragEnd: (position: { x: number; y: number }) => void; nodeRef: (node: Konva.Group | null) => void }) {
+export function ReferenceNode({ item, selected, onSelect, onDragEnd, nodeRef }: { item: BoardItem; selected: boolean; onSelect: () => void; onDragEnd: (node: Konva.Group, position: { x: number; y: number }) => void; nodeRef: (node: Konva.Group | null) => void }) {
   const image = useImage(item.imageUrl)
-  return <Group id={item.id} ref={nodeRef} x={item.position.x} y={item.position.y} width={item.width} height={item.height} draggable={!item.locked} onClick={onSelect} onTap={onSelect} onDragEnd={(event) => onDragEnd({ x: event.target.x(), y: event.target.y() })}>
+  return <Group id={item.id} ref={nodeRef} x={item.position.x} y={item.position.y} width={item.width} height={item.height} draggable={!item.locked} onClick={onSelect} onTap={onSelect} onDragEnd={(event) => onDragEnd(event.target as Konva.Group, { x: event.target.x(), y: event.target.y() })}>
     <Rect width={item.width} height={item.height} fill="#dfd8cc" stroke={selected ? '#4779b8' : '#4d463d'} strokeWidth={selected ? 3 : 1} />
-    {image ? <KonvaImage image={image} x={10} y={10} width={item.width - 20} height={item.height - 47} crop={{ x: 0, y: 0, width: image.width, height: image.height }} /> : <Rect x={10} y={10} width={item.width - 20} height={item.height - 47} fill="#b3a590" />}
-    {item.locked && <><Rect x={item.width - 24} y={item.height - 31} width={10} height={8} stroke="#171717" strokeWidth={1} /><Rect x={item.width - 22} y={item.height - 36} width={6} height={7} stroke="#171717" strokeWidth={1} cornerRadius={4} /></>}
-    <Text x={10} y={item.height - 28} width={item.width - 40} text={`${item.title.toUpperCase()}  ${item.locked ? 'LOCKED' : 'EDITABLE'}`} fontSize={9} fontFamily="IBM Plex Mono" fill="#171717" />
+    {image ? <KonvaImage image={image} x={10} y={10} width={item.width - 20} height={item.height - 63} crop={{ x: 0, y: 0, width: image.width, height: image.height }} /> : <Rect x={10} y={10} width={item.width - 20} height={item.height - 63} fill="#b3a590" />}
+    {item.locked && <><Rect x={item.width - 24} y={item.height - 47} width={10} height={8} stroke="#171717" strokeWidth={1} /><Rect x={item.width - 22} y={item.height - 52} width={6} height={7} stroke="#171717" strokeWidth={1} cornerRadius={4} /></>}
+    <Text x={10} y={item.height - 51} width={item.width - 40} text={`${item.title.toUpperCase()}  ${item.locked ? 'LOCKED' : 'EDITABLE'}`} fontSize={8} fontFamily="IBM Plex Mono" fill="#171717" />
+    <Text x={10} y={item.height - 38} width={item.width - 20} text={referenceFilename(item)} fontSize={8} fontFamily="IBM Plex Mono" fill="#171717" />
+    <Text x={10} y={item.height - 25} width={item.width - 20} text={referenceSourceClass(item)} fontSize={8} fontFamily="IBM Plex Mono" fill="#554a3d" />
   </Group>
 }
