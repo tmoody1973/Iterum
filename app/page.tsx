@@ -1,3 +1,5 @@
+import { IterumWorkspace } from '../components/iterum-workspace'
+
 export default function Home() {
-  return <main data-testid="iterum-workspace">Iterum</main>
+  return <IterumWorkspace />
 }
