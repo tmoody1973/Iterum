@@ -74,6 +74,22 @@ test('extracts and saves a deterministic local color palette from a reference cr
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/extracted 6 canonical colors/i)
 })
 
+test('captures a URL, preserves a designer crop, and sends it to review', async ({ page }) => {
+  await page.route('**/api/references/capture**', async (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Mineral glass study', description: 'Wet glass, hard shadow, and mineral bloom.', imageUrl: '/assets/ref-wet-concrete.webp', sourceUrl: 'https://example.com/mineral-glass', attribution: 'Example studio', rightsStatus: 'uncertain', provider: 'microlink', previewKind: 'screenshot', crop: { x: 0, y: 0, width: 100, height: 100 } }),
+  }))
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Capture' }).click()
+  await page.getByLabel('Public source URL').fill('https://example.com/mineral-glass')
+  await page.getByRole('button', { name: 'Inspect URL' }).click()
+  await expect(page.getByRole('region', { name: 'Crop captured reference' })).toBeVisible()
+  await page.getByRole('slider', { name: 'width' }).fill('70')
+  await page.getByRole('button', { name: 'Send to Review' }).click()
+  await expect(page.getByRole('article', { name: 'Proposal: Mineral glass study' })).toContainText('microlink · X0 Y0 W70 H100')
+  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+})
+
 test('phone defaults to review, restores drawer focus, and keeps approval reversible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

@@ -2,6 +2,7 @@ import type {
   ActionReceipt,
   BoardItem,
   ColorPalette,
+  CropRect,
   CommandErrorCode,
   CommandFailure,
   CommandResult,
@@ -18,6 +19,9 @@ import type {
 const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
 const HEX = /^#[0-9A-F]{6}$/i
+const validCrop = (crop: CropRect) => [crop.x, crop.y, crop.width, crop.height].every(Number.isFinite)
+  && crop.x >= 0 && crop.y >= 0 && crop.width > 0 && crop.height > 0
+  && crop.x + crop.width <= 100 && crop.y + crop.height <= 100
 
 function failure(state: WorkspaceState, code: CommandErrorCode, message: string): CommandFailure {
   return { ok: false, state, error: { code, message } }
@@ -60,7 +64,8 @@ function placementForProposal(proposal: Proposal, id: string, position: Point): 
   return {
     id, title: proposal.title, kind: 'agent-addition', imageUrl: proposal.imageUrl,
     sourceUrl: proposal.sourceUrl, attribution: proposal.attribution, rightsStatus: proposal.rightsStatus,
-    sourceProposalId: proposal.id, territory: proposal.intendedTerritory, position, width: 224, height: 286, locked: false,
+    sourceProposalId: proposal.id, crop: proposal.crop, captureProvider: proposal.captureProvider,
+    territory: proposal.intendedTerritory, position, width: 224, height: 286, locked: false,
   }
 }
 
@@ -151,6 +156,7 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
     }
     case 'propose-reference': {
       const { directPlacement, position, ...proposalInput } = command.proposal
+      if (proposalInput.crop && !validCrop(proposalInput.crop)) return failure(state, 'INVALID_REFERENCE', 'Reference crop coordinates must stay within the source image.')
       if (state.proposals.some((proposal) => proposal.id === proposalInput.id)) {
         return failure(state, 'PROPOSAL_NOT_PENDING', 'A proposal with this ID already exists.')
       }

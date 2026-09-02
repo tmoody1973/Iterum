@@ -139,6 +139,27 @@ describe('applyWorkspaceCommand', () => {
     expect(allowed.state.boardItems.some((item) => item.sourceProposalId === 'proposal-direct' && item.territory === 'Agent Additions')).toBe(true)
   })
 
+  it('preserves valid capture provenance and crop metadata through review and placement', () => {
+    const initial = createDemoWorkspaceState()
+    const proposed = applyWorkspaceCommand(initial, {
+      type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'captured-proposal', actor: 'designer',
+      proposal: { id: 'capture-1', title: 'Captured texture', imageUrl: 'https://images.example.com/texture.jpg', sourceUrl: 'https://example.com/texture', attribution: 'Example studio', rightsStatus: 'uncertain', rationale: 'Surface direction.', intendedTerritory: 'Material tension', captureProvider: 'microlink', crop: { x: 15, y: 10, width: 70, height: 80 } },
+    })
+    expect(proposed.ok).toBe(true)
+    if (!proposed.ok) return
+    expect(proposed.state.proposals[0]).toMatchObject({ captureProvider: 'microlink', crop: { x: 15, y: 10, width: 70, height: 80 } })
+    const approved = applyWorkspaceCommand(proposed.state, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'approve-captured', actor: 'designer', proposalId: 'capture-1' })
+    expect(approved.ok).toBe(true)
+    if (approved.ok) expect(approved.state.boardItems.at(-1)).toMatchObject({ captureProvider: 'microlink', crop: { x: 15, y: 10, width: 70, height: 80 } })
+  })
+
+  it('rejects crop metadata that leaves the source image bounds', () => {
+    const initial = createDemoWorkspaceState()
+    const result = applyWorkspaceCommand(initial, { type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'invalid-crop', actor: 'designer', proposal: { id: 'bad-crop', title: 'Bad crop', sourceUrl: 'https://example.com', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Invalid.', intendedTerritory: 'Material tension', crop: { x: 80, y: 0, width: 30, height: 100 }, captureProvider: 'manual' } })
+    expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_REFERENCE' } })
+  })
+
   it('requires agent approval policy and forces agent approvals to Agent Additions', () => {
     const initial = createDemoWorkspaceState()
     const blocked = applyWorkspaceCommand(initial, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-approve-blocked', actor: 'agent', proposalId: 'proposal-resin' })

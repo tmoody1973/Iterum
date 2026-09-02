@@ -197,8 +197,15 @@ Borders are hairline and tonal. Dashed non-photo-blue outlines identify an uncom
 
 - **Character:** A dark proposal galley that exposes the decision before the action.
 - **Proposal:** Preview, source page, attribution, rights state, rationale, intended territory, Reject, and Approve appear together inside a thin ruled sheet.
-- **Tabs:** Review and Activity are semantic tabs; the selected tab uses white text plus a non-photo-blue underline.
+- **Tabs:** Review, Capture, and Activity are semantic tabs; the selected tab uses white text plus a non-photo-blue underline.
 - **Boundary:** The direct-placement checkbox is explicit, versioned, and visibly constrained to Agent Additions.
+
+### Reference Capture
+
+- **URL capture:** The Capture tab accepts one public source URL, normalizes its metadata and screenshot through the server-side Microlink adapter, and keeps the original URL visible.
+- **Crop:** Designers set percentage-based X/Y/width/height bounds over the captured preview before sending it to review. The crop, provider, attribution, and rights state travel with the proposal and approved board item.
+- **Licensed search:** Pexels results retain their creator attribution and source page. Missing provider credentials resolve to an explicit configuration notice rather than synthetic results.
+- **Agent boundary:** WebMCP can capture, search, and propose; it cannot approve the reference or silently place it outside the existing direct-placement policy.
 
 ### Working Mechanical
 

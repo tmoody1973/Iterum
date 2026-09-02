@@ -1,6 +1,8 @@
 export type Actor = 'designer' | 'agent' | 'system'
 
 export type Point = { x: number; y: number }
+export type CropRect = { x: number; y: number; width: number; height: number }
+export type CaptureProvider = 'microlink' | 'pexels' | 'manual'
 
 export interface Campaign {
   id: string
@@ -21,6 +23,8 @@ export interface BoardItem {
   attribution?: string
   rightsStatus?: RightsStatus
   sourceProposalId?: string
+  crop?: CropRect
+  captureProvider?: CaptureProvider
   territory: string
   position: Point
   width: number
@@ -40,6 +44,8 @@ export interface Proposal {
   rightsStatus: RightsStatus
   rationale: string
   intendedTerritory: string
+  crop?: CropRect
+  captureProvider?: CaptureProvider
   status: ProposalStatus
 }
 
@@ -141,6 +147,7 @@ export type CommandErrorCode =
   | 'DIRECT_PLACEMENT_NOT_ALLOWED'
   | 'INVALID_PLACEMENT_POLICY'
   | 'INVALID_COLOR_PALETTE'
+  | 'INVALID_REFERENCE'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'

@@ -12,6 +12,7 @@ export function ProposalCard({ proposal, placement, onApprove, onReject }: { pro
         <dt>Source page</dt><dd><a href={proposal.sourceUrl} target="_blank" rel="noreferrer">{proposal.sourceUrl}</a></dd>
         <dt>Attribution</dt><dd>{proposal.attribution}</dd>
         <dt>Rights</dt><dd className={`rights-${proposal.rightsStatus}`}>{proposal.rightsStatus}</dd>
+        {proposal.captureProvider && <><dt>Capture</dt><dd>{proposal.captureProvider}{proposal.crop ? ` · X${proposal.crop.x} Y${proposal.crop.y} W${proposal.crop.width} H${proposal.crop.height}` : ''}</dd></>}
         <dt>Rationale</dt><dd>{proposal.rationale}</dd>
         <dt>Placement</dt><dd>{placement ? `Preview → ${proposal.intendedTerritory} · X ${placement.x} · Y ${placement.y}` : `Preview → ${proposal.intendedTerritory}`}</dd>
       </dl>

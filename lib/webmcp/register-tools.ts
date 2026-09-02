@@ -2,29 +2,13 @@ import type { WebMCPTool } from '../../types/webmcp'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
 import type { Proposal, WorkspaceCommand, WorkspaceState } from '../domain/types'
+import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
 
 const requiredMutation = ['campaignId', 'boardId', 'expectedBoardVersion', 'idempotencyKey']
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const hasExactKeys = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every((key) => allowed.includes(key))
 const finitePoint = (value: unknown): value is { x: number; y: number } => isObject(value) && hasExactKeys(value, ['x', 'y']) && Number.isFinite(value.x) && Number.isFinite(value.y)
-
-function isPublicHttpUrl(value: unknown) {
-  if (typeof value !== 'string') return false
-  try {
-    const url = new URL(value)
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
-    const isIpv6 = host.includes(':')
-    if (!host || host === 'localhost' || host.endsWith('.local') || host === '::1' || (isIpv6 && (host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')))) return false
-    const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-    if (ipv4) {
-      const octets = ipv4.slice(1).map(Number)
-      if (octets.some((part) => part > 255) || octets[0] === 10 || octets[0] === 127 || octets[0] === 0 || octets[0] >= 224 || (octets[0] === 169 && octets[1] === 254) || (octets[0] === 192 && octets[1] === 168) || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)) return false
-    }
-    return true
-  } catch { return false }
-}
 
 function invalid(state: WorkspaceState, message: string) { return failure(state, 'VALIDATION_ERROR', message) }
 
@@ -41,16 +25,20 @@ function execute(runtime: WorkspaceRuntime, command: WorkspaceCommand): ToolResp
 }
 
 function parsedProposal(value: unknown): Omit<Proposal, 'status'> & { directPlacement?: boolean; position?: { x: number; y: number } } | null {
-  const proposalKeys = ['id', 'title', 'imageUrl', 'sourceUrl', 'attribution', 'rightsStatus', 'rationale', 'intendedTerritory', 'directPlacement', 'position']
+  const proposalKeys = ['id', 'title', 'imageUrl', 'sourceUrl', 'attribution', 'rightsStatus', 'rationale', 'intendedTerritory', 'crop', 'captureProvider', 'directPlacement', 'position']
   if (!isObject(value) || !hasExactKeys(value, proposalKeys) || typeof value.id !== 'string' || !value.id || typeof value.title !== 'string' || !value.title || !isPublicHttpUrl(value.sourceUrl) || typeof value.attribution !== 'string' || !value.attribution || typeof value.rationale !== 'string' || !value.rationale || typeof value.intendedTerritory !== 'string' || !value.intendedTerritory || !['cleared', 'reference-only', 'uncertain'].includes(String(value.rightsStatus))) return null
   if (value.imageUrl !== undefined && !isPublicHttpUrl(value.imageUrl)) return null
+  const crop = value.crop
+  if (crop !== undefined && (!isObject(crop) || !hasExactKeys(crop, ['x', 'y', 'width', 'height']) || ![crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) || (crop.x as number) < 0 || (crop.y as number) < 0 || (crop.width as number) <= 0 || (crop.height as number) <= 0 || (crop.x as number) + (crop.width as number) > 100 || (crop.y as number) + (crop.height as number) > 100)) return null
+  if (value.captureProvider !== undefined && !['microlink', 'pexels', 'manual'].includes(String(value.captureProvider))) return null
   if (value.directPlacement !== undefined && typeof value.directPlacement !== 'boolean') return null
   if (value.position !== undefined && !finitePoint(value.position)) return null
-  return { id: value.id, title: value.title, ...(typeof value.imageUrl === 'string' ? { imageUrl: value.imageUrl } : {}), sourceUrl: String(value.sourceUrl), attribution: value.attribution, rightsStatus: value.rightsStatus as Proposal['rightsStatus'], rationale: value.rationale, intendedTerritory: value.intendedTerritory, ...(typeof value.directPlacement === 'boolean' ? { directPlacement: value.directPlacement } : {}), ...(isObject(value.position) ? { position: { x: value.position.x as number, y: value.position.y as number } } : {}) }
+  return { id: value.id, title: value.title, ...(typeof value.imageUrl === 'string' ? { imageUrl: value.imageUrl } : {}), sourceUrl: String(value.sourceUrl), attribution: value.attribution, rightsStatus: value.rightsStatus as Proposal['rightsStatus'], rationale: value.rationale, intendedTerritory: value.intendedTerritory, ...(isObject(crop) ? { crop: { x: crop.x as number, y: crop.y as number, width: crop.width as number, height: crop.height as number } } : {}), ...(typeof value.captureProvider === 'string' ? { captureProvider: value.captureProvider as Proposal['captureProvider'] } : {}), ...(typeof value.directPlacement === 'boolean' ? { directPlacement: value.directPlacement } : {}), ...(isObject(value.position) ? { position: { x: value.position.x as number, y: value.position.y as number } } : {}) }
 }
 
+const cropProperties = { type: 'object', properties: { x: { type: 'number', minimum: 0, maximum: 100 }, y: { type: 'number', minimum: 0, maximum: 100 }, width: { type: 'number', exclusiveMinimum: 0, maximum: 100 }, height: { type: 'number', exclusiveMinimum: 0, maximum: 100 } }, required: ['x', 'y', 'width', 'height'], additionalProperties: false }
 const proposalProperties = {
-  id: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, imageUrl: { type: 'string' }, sourceUrl: { type: 'string', minLength: 1 }, attribution: { type: 'string', minLength: 1 }, rightsStatus: { type: 'string', enum: ['cleared', 'reference-only', 'uncertain'] }, rationale: { type: 'string', minLength: 1 }, intendedTerritory: { type: 'string', minLength: 1 }, directPlacement: { type: 'boolean' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
+  id: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, imageUrl: { type: 'string' }, sourceUrl: { type: 'string', minLength: 1 }, attribution: { type: 'string', minLength: 1 }, rightsStatus: { type: 'string', enum: ['cleared', 'reference-only', 'uncertain'] }, rationale: { type: 'string', minLength: 1 }, intendedTerritory: { type: 'string', minLength: 1 }, crop: cropProperties, captureProvider: { type: 'string', enum: ['microlink', 'pexels', 'manual'] }, directPlacement: { type: 'boolean' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
 }
 const mutationProperties = { campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1 } }
 const harmonyModes = ['monochrome', 'monochrome-dark', 'monochrome-light', 'analogic', 'complement', 'analogic-complement', 'triad', 'quad'] as const
@@ -70,6 +58,26 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+    },
+    {
+      name: 'capture_url_reference', title: 'Capture a URL reference', description: 'Capture normalized page metadata and an embeddable preview through Iterum’s server-side Microlink adapter. Returns a default full crop and never adds the result to the board.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, url: { type: 'string', minLength: 1 } }, required: ['campaignId', 'boardId', 'url'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'url']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || !isPublicHttpUrl(input.url)) return invalid(state, 'Provide the open campaign and one public http(s) URL.')
+        try { const payload = await responseJson(await fetch(`/api/references/capture?url=${encodeURIComponent(input.url)}`)); return success(state, payload, `Captured reference metadata from ${new URL(input.url).hostname}.`) }
+        catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'URL capture is unavailable.', true) }
+      },
+    },
+    {
+      name: 'search_reference_images', title: 'Search licensed reference images', description: 'Search Pexels through Iterum’s server-side adapter. Results include source links and attribution and are not added to the Review Tray automatically.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, query: { type: 'string', minLength: 2, maxLength: 120 }, count: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['campaignId', 'boardId', 'query'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'query', 'count']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.query !== 'string' || input.query.trim().length < 2 || input.query.length > 120 || (input.count !== undefined && (!Number.isInteger(input.count) || (input.count as number) < 1 || (input.count as number) > 12))) return invalid(state, 'Provide the open campaign, a 2–120 character query, and an optional result count from 1–12.')
+        try { const payload = await responseJson(await fetch(`/api/references/search?q=${encodeURIComponent(input.query)}&count=${input.count ?? 8}`)); return success(state, payload, `Searched Pexels for “${input.query}”.`) }
+        catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Pexels search is unavailable.', true) }
+      },
     },
     {
       name: 'extract_reference_palette', title: 'Extract a reference palette', description: 'Use Iterum’s local deterministic pixel extraction on a current board reference or a centered crop. This does not save or pin any color.',
@@ -110,6 +118,11 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
           return success(state, payload, 'Generated an experimental Colormind palette direction.')
         } catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Colormind is unavailable.', true) }
       },
+    },
+    {
+      name: 'propose_captured_reference', title: 'Propose a captured reference', description: 'Send a captured or searched reference with provenance and crop metadata to the Review Tray. This never approves the reference or chooses the designer’s final direction.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, reference: { type: 'object', properties: proposalProperties, required: ['id', 'title', 'sourceUrl', 'attribution', 'rightsStatus', 'rationale', 'intendedTerritory', 'crop', 'captureProvider'], additionalProperties: false } }, required: [...requiredMutation, 'reference'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => { const state = runtime.getSnapshot(); const checked = mutationInput(state, input); if ('response' in checked) return checked.response; if (!hasExactKeys(checked.value, [...requiredMutation, 'reference'])) return invalid(state, 'reference is the only additional accepted field.'); const proposal = parsedProposal(checked.value.reference); if (!proposal || !proposal.crop || !proposal.captureProvider) return invalid(state, 'reference must include public URLs, provenance, rights, and a valid percentage crop.'); return execute(runtime, { type: 'propose-reference', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: { ...proposal, directPlacement: false } }) },
     },
     {
       name: 'propose_reference', title: 'Propose a sourced reference', description: 'Add a sourced reference to the Review Tray. Direct placement requires the designer policy and is constrained to Agent Additions.',
