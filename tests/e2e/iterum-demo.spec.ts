@@ -264,6 +264,30 @@ test('isolates a proposal locally and restores the original with a versioned act
   await expect(proposal.getByRole('button', { name: 'Isolate subject' })).toBeVisible()
 })
 
+test('keeps the reference library scrollable above the workspace status bar', async ({ page }) => {
+  await page.setViewportSize({ width: 1159, height: 810 })
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Library' }).click()
+
+  const library = page.locator('.reference-library')
+  await expect(library).toBeVisible()
+  const dimensions = await library.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }))
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight)
+
+  await library.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await expect.poll(() => library.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect(page.getByRole('heading', { name: 'Resin iris / violet fracture' })).toBeInViewport()
+
+  const libraryBox = await library.boundingBox()
+  const statusBarBox = await page.locator('.bottom-mode-bar').boundingBox()
+  expect(libraryBox).not.toBeNull()
+  expect(statusBarBox).not.toBeNull()
+  expect(libraryBox!.y + libraryBox!.height).toBeLessThanOrEqual(statusBarBox!.y + 1)
+})
+
 test('searches the reference library and lets the designer approve agent tags', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
