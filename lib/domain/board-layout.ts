@@ -29,6 +29,7 @@ export function projectBoardLayout(items: BoardItem[], proposal: Pick<BoardLayou
       ...(change.position ? { position: { ...change.position } } : {}),
       ...(change.width !== undefined ? { width: change.width } : {}),
       ...(change.height !== undefined ? { height: change.height } : {}),
+      ...(change.locked !== undefined ? { locked: change.locked } : {}),
       ...(change.territory !== undefined ? { territory: change.territory } : {}),
       ...(change.groupId !== undefined ? { groupId: change.groupId, groupLabel: change.groupLabel } : {}),
     }

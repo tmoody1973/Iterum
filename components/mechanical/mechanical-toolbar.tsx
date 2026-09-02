@@ -1,6 +1,6 @@
 'use client'
 
-import { Focus, LockKeyhole, Move, MousePointer2, Palette, ScanLine, Type, ZoomIn, ZoomOut } from 'lucide-react'
+import { Focus, LockKeyhole, LockOpen, Move, MousePointer2, Palette, ScanLine, Type, ZoomIn, ZoomOut } from 'lucide-react'
 
 import { boundsForItems, fitBounds, viewportCenter, viewportFromCenter, zoomAtPoint } from '../../lib/board/viewport'
 import type { BoardItem } from '../../lib/domain/types'
@@ -15,7 +15,7 @@ const tools: Array<{ id: ActiveTool; label: string; Icon: typeof MousePointer2 }
   { id: 'annotate', label: 'Mark', Icon: Move },
 ]
 
-export function MechanicalToolbar({ activeTool, onToolChange, boardItems }: { activeTool: ActiveTool; onToolChange: (tool: ActiveTool) => void; boardItems: BoardItem[] }) {
+export function MechanicalToolbar({ activeTool, onToolChange, boardItems, selectedItem, onToggleSelectedLock }: { activeTool: ActiveTool; onToolChange: (tool: ActiveTool) => void; boardItems: BoardItem[]; selectedItem?: BoardItem; onToggleSelectedLock: () => void }) {
   const viewport = useUiStore((state) => state.boardViewport)
   const size = useUiStore((state) => state.boardViewportSize)
   const setViewport = useUiStore((state) => state.setBoardViewport)
@@ -33,6 +33,6 @@ export function MechanicalToolbar({ activeTool, onToolChange, boardItems }: { ac
       <button type="button" disabled={!available} onClick={fit} aria-label="Fit board"><Focus aria-hidden="true" />Fit</button>
       <output aria-label="Current board zoom">{Math.round(viewport.scale * 100)}%</output>
     </span>
-    <span className="mechanical-lock-note"><LockKeyhole aria-hidden="true" />References locked</span>
+    <button type="button" className="mechanical-item-lock" disabled={!selectedItem} onClick={onToggleSelectedLock} aria-label={selectedItem ? `${selectedItem.locked ? 'Unlock' : 'Lock'} ${selectedItem.title}` : 'Select an item to change its lock'}>{selectedItem?.locked ? <LockOpen aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}{selectedItem ? selectedItem.locked ? 'Unlock' : 'Lock' : 'Select to lock'}</button>
   </div>
 }

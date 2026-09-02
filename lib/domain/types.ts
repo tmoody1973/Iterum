@@ -62,7 +62,7 @@ export interface Campaign {
 export interface BoardItem {
   id: string
   title: string
-  kind: 'reference' | 'agent-addition' | 'type-specimen' | 'note'
+  kind: 'reference' | 'agent-addition' | 'type-specimen' | 'note' | 'campaign-proof' | 'color-strip'
   typeRole?: 'headline' | 'body'
   noteBody?: string
   noteTone?: 'blue' | 'ruby' | 'paper'
@@ -94,6 +94,7 @@ export interface BoardLayoutChange {
   position?: Point
   width?: number
   height?: number
+  locked?: boolean
   territory?: string
   groupId?: string
   groupLabel?: string
@@ -180,6 +181,7 @@ export type UndoEffect =
   | { type: 'board-layout-decision'; proposalId: string; previousStatus: ProposalStatus; previousItems: BoardItem[]; addedItemIds: string[] }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
+  | { type: 'lock'; itemId: string; previousLocked: boolean }
 
 export interface ActionReceipt {
   id: string
@@ -238,6 +240,7 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'review-board-layout'; proposalId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
+  | (CommandBase & { type: 'set-board-item-lock'; itemId: string; locked: boolean })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
 
 export type CommandErrorCode =

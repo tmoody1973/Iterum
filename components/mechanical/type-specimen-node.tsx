@@ -31,6 +31,6 @@ export function TypeSpecimenNode({ item, direction, selected, panEnabled, onSele
     <Text x={12} y={11} width={item.width - 24} text={`TYPE PRESSURE / ${isHeadline ? 'HEADLINE' : 'BODY'}`} fontFamily="IBM Plex Mono" fontSize={8} fill="#a05040" />
     <Text x={12} y={30} width={item.width - 24} height={item.height - 64} text={specimen} fontFamily={family} fontSize={isHeadline ? 34 : 16} lineHeight={isHeadline ? .86 : 1.35} fill="#171717" wrap="word" />
     <Text x={12} y={item.height - 29} width={item.width - 24} text={`${familyLabel.toUpperCase()} · ${candidate ? 'APPROVED' : 'AWAITING DIRECTION'}`} fontFamily="IBM Plex Mono" fontSize={8} fill="#554a3d" />
-    <Text x={12} y={item.height - 17} width={item.width - 24} text="SELECT · MOVE · RESIZE" fontFamily="IBM Plex Mono" fontSize={7} fill="#4779b8" />
+    <Text x={12} y={item.height - 17} width={item.width - 24} text={item.locked ? 'LOCKED' : 'SELECT · MOVE · RESIZE'} fontFamily="IBM Plex Mono" fontSize={7} fill="#4779b8" />
   </Group>
 }

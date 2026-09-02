@@ -5,7 +5,7 @@ import { useWebMcpTools } from '../hooks/use-webmcp-tools'
 import { useWebClipIntake } from '../hooks/use-web-clip-intake'
 import { demoRuntime } from '../lib/domain/demo-runtime'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
-import type { Point, Proposal, WorkspaceState } from '../lib/domain/types'
+import type { Point, Proposal } from '../lib/domain/types'
 import { useUiStore } from '../stores/ui-store'
 import { BottomModeBar } from './bottom-mode-bar'
 import { CampaignJobTicket } from './campaign-job-ticket'
@@ -19,7 +19,7 @@ import { useEffect, useRef } from 'react'
 import { ActionReceipt } from './review/action-receipt'
 import { ReviewTray } from './review/review-tray'
 import { TypographyStudio } from './typography/typography-studio'
-import { fontFamilyFor, useTypefaceStylesheet } from './typography/typeface-sample'
+import { useTypefaceStylesheet } from './typography/typeface-sample'
 
 const PLACEMENT_SIZE = { width: 224, height: 286 }
 
@@ -33,12 +33,10 @@ export function proposalPlacementForViewport(width: number, height: number): Poi
   }
 }
 
-function PlacementProjection({ proposal, placement, item }: { proposal: Proposal; placement: Point; item?: WorkspaceState['boardItems'][number] }) {
-  const committed = item?.position ?? placement
-  const className = item ? 'placement-projection is-placed' : 'placement-projection is-preview'
-  return <figure className={className} data-testid="proposal-placement" data-placement={`X ${committed.x} · Y ${committed.y}`} style={{ left: committed.x, top: committed.y, width: item?.width ?? PLACEMENT_SIZE.width, height: item?.height ?? PLACEMENT_SIZE.height }}>
-    {proposal.imageUrl ? <img src={proposal.imageUrl} alt={`${proposal.title} ${item ? 'placed on the mechanical' : 'destination preview'}`} /> : <div className="placement-projection-missing">Preview unavailable</div>}
-    <figcaption>{item ? `Waxed at X ${committed.x} · Y ${committed.y}` : `Destination preview · X ${committed.x} · Y ${committed.y}`}</figcaption>
+function PlacementProjection({ proposal, placement }: { proposal: Proposal; placement: Point }) {
+  return <figure className="placement-projection is-preview" data-testid="proposal-placement" data-placement={`X ${placement.x} · Y ${placement.y}`} style={{ left: placement.x, top: placement.y, width: PLACEMENT_SIZE.width, height: PLACEMENT_SIZE.height }}>
+    {proposal.imageUrl ? <img src={proposal.imageUrl} alt={`${proposal.title} destination preview`} /> : <div className="placement-projection-missing">Preview unavailable</div>}
+    <figcaption>{`Destination preview · X ${placement.x} · Y ${placement.y}`}</figcaption>
   </figure>
 }
 
@@ -65,15 +63,8 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const versionLabel = `V${String(snapshot.version).padStart(2, '0')}`
   const pendingProposal = snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin' && proposal.status === 'pending')
   const pendingPlacement = proposalPlacementForViewport(canvasSize.width, canvasSize.height)
-  const placedProposalItem = snapshot.boardItems.find((item) => item.sourceProposalId === 'proposal-resin')
   const layoutPreview = snapshot.layoutProposals.find((proposal) => proposal.id === previewLayoutProposalId && proposal.status === 'pending')
-  const extractedColors = snapshot.colorPalette.extraction?.colors.map((color) => color.hex) ?? []
-  const pinnedColors = snapshot.colorPalette.pinned.map((color) => color.hex)
-  const campaignColors = extractedColors.length > 0
-    ? extractedColors
-    : pinnedColors.length > 0
-      ? pinnedColors
-      : ['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d']
+  const selectedBoardItem = snapshot.boardItems.find((item) => item.id === selectedBoardItemId)
   useTypefaceStylesheet(snapshot.typeDirection?.headline)
   useTypefaceStylesheet(snapshot.typeDirection?.body)
 
@@ -112,7 +103,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
         <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={closeBrief} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
-          <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} boardItems={snapshot.boardItems} />
+          <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} boardItems={snapshot.boardItems} selectedItem={selectedBoardItem} onToggleSelectedLock={() => { if (selectedBoardItem) workspaceRuntime.dispatch({ type: 'set-board-item-lock', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', itemId: selectedBoardItem.id, locked: !selectedBoardItem.locked }) }} />
           {activeTool === 'color' && <ColorStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} />}
           {activeTool === 'type' && <TypographyStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} onProposed={() => { setActiveTool('select'); setActiveRightTab('review') }} />}
           <div className="ruler ruler-top" aria-hidden="true" />
@@ -122,18 +113,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
             </div>
             <div className="board-overlay-world" style={{ transform: `translate(${boardViewport.x}px, ${boardViewport.y}px) scale(${boardViewport.scale})` }}>
               <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
-              <article className="poster-proof">
-                <span className="tape tape-top" aria-hidden="true" />
-                <p className="poster-brand">ITERUM</p><p className="poster-campaign">Static bloom</p>
-                <h2 style={{ fontFamily: fontFamilyFor(snapshot.typeDirection?.headline) }}>The air re-<br />members.</h2>
-                <img src="/assets/ref-resin-iris.webp" alt="Crushed iris in resin campaign proof" />
-                <p className="poster-notes">ozone<br />crushed iris<br />mineral rain<br />warm concrete<br />skin</p>
-                <p className="poster-footer">ITERUM.COM <span>The air remembers.</span></p>
-                <span className="tape tape-bottom" aria-hidden="true" />
-              </article>
-              <div className="color-strip" aria-label="Campaign color control strip">{campaignColors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
               {pendingProposal && <PlacementProjection proposal={pendingProposal} placement={pendingPlacement} />}
-              {placedProposalItem && <PlacementProjection proposal={snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin')!} placement={pendingPlacement} item={placedProposalItem} />}
             </div>
           </section>
           <BoardOutline snapshot={snapshot} runtime={workspaceRuntime} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />

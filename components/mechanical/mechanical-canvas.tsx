@@ -12,6 +12,8 @@ import { ReferenceNode } from './reference-node'
 import { TypeSpecimenNode } from './type-specimen-node'
 import { NoteNode } from './note-node'
 import { BoardGroupOutlines, LayoutGhostPreview } from './layout-ghost-preview'
+import { CampaignProofNode } from './campaign-proof-node'
+import { ColorStripNode } from './color-strip-node'
 
 Konva.hitOnDragEnabled = true
 
@@ -53,6 +55,8 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
   const setViewport = useUiStore((state) => state.setBoardViewport)
   const setViewportSize = useUiStore((state) => state.setBoardViewportSize)
   const boardBounds = useMemo(() => boundsForItems(snapshot.boardItems, true), [snapshot.boardItems])
+  const campaignColors = snapshot.colorPalette.extraction?.colors.map((color) => color.hex)
+    ?? (snapshot.colorPalette.pinned.length ? snapshot.colorPalette.pinned.map((color) => color.hex) : ['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d'])
   const selected = snapshot.boardItems.find((item) => item.id === selectedId)
   const rollback = (node: Konva.Group, itemId: string) => {
     if (!restoreNodeFromRuntime(node, runtime, itemId)) {
@@ -165,6 +169,10 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
       <BoardGroupOutlines snapshot={snapshot} />
       {snapshot.boardItems.map((item) => item.kind === 'type-specimen'
         ? <TypeSpecimenNode key={item.id} item={item} direction={snapshot.typeDirection} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
+        : item.kind === 'campaign-proof'
+          ? <CampaignProofNode key={item.id} item={item} campaign={snapshot.campaign} direction={snapshot.typeDirection} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
+        : item.kind === 'color-strip'
+          ? <ColorStripNode key={item.id} item={item} colors={campaignColors} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
         : item.kind === 'note'
           ? <NoteNode key={item.id} item={item} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
         : <ReferenceNode key={item.id} item={item} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />)}

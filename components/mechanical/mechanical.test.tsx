@@ -18,11 +18,19 @@ function renderOutline() {
 afterEach(() => cleanup())
 
 describe('mechanical DOM mirror', () => {
-  it('lists all three locked references with provenance and no enabled delete action', () => {
+  it('lists every canvas object and gives the three protected references explicit unlock controls', () => {
     renderOutline()
-    expect(screen.getAllByRole('button', { name: /delete/i })).toHaveLength(3)
-    screen.getAllByRole('button', { name: /delete/i }).forEach((button) => expect(button).toBeDisabled())
+    expect(screen.getAllByRole('button', { name: /^unlock /i })).toHaveLength(3)
+    expect(screen.getByRole('button', { name: /select static bloom campaign proof/i })).toBeVisible()
+    expect(screen.getByRole('button', { name: /select campaign color control strip/i })).toBeVisible()
     expect(screen.getAllByText(/source: iterum synthetic reference/i)).toHaveLength(3)
+  })
+
+  it('lets the designer lock a previously movable campaign proof', () => {
+    const runtime = renderOutline()
+    fireEvent.click(screen.getByRole('button', { name: /lock static bloom campaign proof/i }))
+    expect(runtime.getSnapshot().boardItems.find((item) => item.id === 'campaign-proof-static-bloom')?.locked).toBe(true)
+    expect(runtime.getSnapshot().receipts[0]).toMatchObject({ action: 'set-board-item-lock', actor: 'designer' })
   })
 
   it('updates transient UI selection from the outline', () => {

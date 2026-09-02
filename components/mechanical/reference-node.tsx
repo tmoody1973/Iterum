@@ -9,6 +9,8 @@ import type { BoardItem } from '../../lib/domain/types'
 export function referenceFilename(item: BoardItem) {
   if (item.kind === 'type-specimen') return `${item.typeRole ?? 'TYPE'}_SPECIMEN`
   if (item.kind === 'note') return 'DIRECTION_NOTE'
+  if (item.kind === 'campaign-proof') return 'CAMPAIGN_PROOF'
+  if (item.kind === 'color-strip') return 'CAMPAIGN_COLOR_STRIP'
   const path = item.imageUrl?.split('/').pop()
   return (path ?? item.title).replace(/-/g, '_').toUpperCase()
 }
@@ -16,6 +18,8 @@ export function referenceFilename(item: BoardItem) {
 export function referenceSourceClass(item: BoardItem) {
   if (item.kind === 'type-specimen') return 'APPROVED TYPE DIRECTION'
   if (item.kind === 'note') return 'DIRECTION DRAFT NOTE'
+  if (item.kind === 'campaign-proof') return 'CANONICAL CAMPAIGN PROOF'
+  if (item.kind === 'color-strip') return 'CANONICAL CAMPAIGN PALETTE'
   return item.kind === 'agent-addition' ? 'AGENT PROPOSAL' : item.sourceUrl === 'local-demo' ? 'LOCAL SYNTHETIC' : 'EXTERNAL REFERENCE'
 }
 

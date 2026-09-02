@@ -22,6 +22,7 @@ export function DirectionDraftCard({ proposal, snapshot, isPreviewing, onPreview
         return <li key={change.itemId}><strong>{item?.title ?? change.itemId}</strong><span>{[
           change.position ? `Move to X${change.position.x} Y${change.position.y}` : '',
           change.width || change.height ? `Size ${change.width ?? item?.width} × ${change.height ?? item?.height}` : '',
+          change.locked !== undefined ? `${change.locked ? 'Lock' : 'Unlock'} item` : '',
           change.territory ? `Territory: ${change.territory}` : '',
           change.groupLabel ? `Group: ${change.groupLabel}` : '',
         ].filter(Boolean).join(' · ')}</span></li>

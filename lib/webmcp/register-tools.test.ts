@@ -93,15 +93,15 @@ describe('registerIterumTools', () => {
     await registerIterumTools(work, new AbortController(), undefined, { previewLayoutProposal, openReview })
     const context = { signal: new AbortController().signal }
     const propose = registered.find((tool) => tool.name === 'propose_board_layout')!
-    const response = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'direction-draft', layout: { id: 'draft-severe', title: 'Severe editorial direction', rationale: 'Compress the type system and add a clear art-direction note.', changes: [{ itemId: 'type-specimen-headline', position: { x: 720, y: 430 }, width: 340, height: 190, groupId: 'type-system', groupLabel: 'Type pressure system' }, { itemId: 'type-specimen-body', groupId: 'type-system', groupLabel: 'Type pressure system' }], notes: [{ id: 'note-severe', title: 'Hold the pressure', body: 'Keep the type compressed and severe.', tone: 'ruby', territory: 'Type pressure', position: { x: 420, y: 760 }, width: 300, height: 120 }] } }, context) as { ok: boolean; boardVersion: number }
+    const response = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'direction-draft', layout: { id: 'draft-severe', title: 'Severe editorial direction', rationale: 'Compress the type system and add a clear art-direction note.', changes: [{ itemId: 'type-specimen-headline', position: { x: 720, y: 430 }, width: 340, height: 190, groupId: 'type-system', groupLabel: 'Type pressure system' }, { itemId: 'type-specimen-body', groupId: 'type-system', groupLabel: 'Type pressure system' }, { itemId: 'campaign-proof-static-bloom', locked: true }], notes: [{ id: 'note-severe', title: 'Hold the pressure', body: 'Keep the type compressed and severe.', tone: 'ruby', territory: 'Type pressure', position: { x: 420, y: 760 }, width: 300, height: 120 }] } }, context) as { ok: boolean; boardVersion: number }
     expect(response.ok).toBe(true)
     expect(response.boardVersion).toBe(4)
     expect(work.getSnapshot().layoutProposals[0].status).toBe('pending')
-    expect(work.getSnapshot().boardItems).toHaveLength(5)
+    expect(work.getSnapshot().boardItems).toHaveLength(7)
 
     const preview = registered.find((tool) => tool.name === 'preview_board_layout')!
     const previewed = await preview.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'draft-severe' }, context) as { ok: boolean; data: { projectedItems: Array<{ id: string }> }; ui: { updated: boolean } }
-    expect(previewed.data.projectedItems).toHaveLength(3)
+    expect(previewed.data.projectedItems).toHaveLength(4)
     expect(previewed.ui.updated).toBe(true)
     expect(previewLayoutProposal).toHaveBeenCalledWith('draft-severe')
     expect(openReview).toHaveBeenCalled()
@@ -109,10 +109,11 @@ describe('registerIterumTools', () => {
     const requestApply = registered.find((tool) => tool.name === 'apply_board_layout')!
     const requested = await requestApply.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'draft-severe' }, context) as { ok: boolean; boardVersion: number; data: { requiresDesignerApproval: boolean } }
     expect(requested).toMatchObject({ ok: true, boardVersion: 4, data: { requiresDesignerApproval: true } })
-    expect(work.getSnapshot().boardItems).toHaveLength(5)
+    expect(work.getSnapshot().boardItems).toHaveLength(7)
     const approved = work.dispatch({ type: 'review-board-layout', campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedVersion: 4, idempotencyKey: 'designer-apply-draft', actor: 'designer', proposalId: 'draft-severe', decision: 'approve' })
     expect(approved.ok).toBe(true)
     expect(work.getSnapshot().boardItems.find((item) => item.id === 'note-severe')).toMatchObject({ kind: 'note', noteTone: 'ruby' })
+    expect(work.getSnapshot().boardItems.find((item) => item.id === 'campaign-proof-static-bloom')?.locked).toBe(true)
   })
 
   it('routes an agent web clip through the pending Review Tray', async () => {
@@ -124,7 +125,7 @@ describe('registerIterumTools', () => {
     const response = await webClip.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'agent-web-clip', clip: { id: 'material-1', title: 'Mineral foil', sourceUrl: 'https://example.com/material', imageUrl: 'https://images.example.com/material.jpg' } }, { signal: new AbortController().signal }) as { ok: boolean }
     expect(response.ok).toBe(true)
     expect(work.getSnapshot().proposals[0]).toMatchObject({ id: 'web-clip-material-1', status: 'pending', captureProvider: 'web-clipper', rightsStatus: 'uncertain', sourceUrl: 'https://example.com/material' })
-    expect(work.getSnapshot().boardItems).toHaveLength(5)
+    expect(work.getSnapshot().boardItems).toHaveLength(7)
   })
 
   it('rejects strict malformed, private, and designer-only tool input without mutation', async () => {

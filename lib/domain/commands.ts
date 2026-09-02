@@ -125,11 +125,12 @@ function invalidBoardLayout(state: WorkspaceState, proposal: Omit<BoardLayoutPro
   for (const change of proposal.changes) {
     const item = state.boardItems.find((candidate) => candidate.id === change.itemId)
     if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', `Board item ${change.itemId} no longer exists.`)
-    const hasChange = change.position !== undefined || change.width !== undefined || change.height !== undefined || change.territory !== undefined || change.groupId !== undefined
-    if (!hasChange || (change.position && (!Number.isFinite(change.position.x) || !Number.isFinite(change.position.y) || Math.abs(change.position.x) > 5000 || Math.abs(change.position.y) > 5000)) || (change.width !== undefined && (!Number.isFinite(change.width) || change.width < 80 || change.width > 1200)) || (change.height !== undefined && (!Number.isFinite(change.height) || change.height < 60 || change.height > 1200)) || (change.territory !== undefined && (!change.territory.trim() || change.territory.length > 80)) || (change.groupId !== undefined && (!change.groupId.trim() || change.groupId.length > 80 || !change.groupLabel?.trim() || change.groupLabel.length > 80)) || (change.groupLabel !== undefined && change.groupId === undefined)) {
+    const minimumHeight = item.kind === 'color-strip' ? 16 : 60
+    const hasChange = change.position !== undefined || change.width !== undefined || change.height !== undefined || change.locked !== undefined || change.territory !== undefined || change.groupId !== undefined
+    if (!hasChange || (change.position && (!Number.isFinite(change.position.x) || !Number.isFinite(change.position.y) || Math.abs(change.position.x) > 5000 || Math.abs(change.position.y) > 5000)) || (change.width !== undefined && (!Number.isFinite(change.width) || change.width < 80 || change.width > 1200)) || (change.height !== undefined && (!Number.isFinite(change.height) || change.height < minimumHeight || change.height > 1200)) || (change.locked !== undefined && typeof change.locked !== 'boolean') || (change.territory !== undefined && (!change.territory.trim() || change.territory.length > 80)) || (change.groupId !== undefined && (!change.groupId.trim() || change.groupId.length > 80 || !change.groupLabel?.trim() || change.groupLabel.length > 80)) || (change.groupLabel !== undefined && change.groupId === undefined)) {
       return failure(state, 'INVALID_BOARD_LAYOUT', `The proposed change for ${item.title} is invalid.`)
     }
-    if (item.locked && (change.position || change.width !== undefined || change.height !== undefined)) return failure(state, 'LOCKED_REFERENCE', `${item.title} is locked and cannot change geometry.`)
+    if (item.locked && change.locked !== false && (change.position || change.width !== undefined || change.height !== undefined)) return failure(state, 'LOCKED_REFERENCE', `${item.title} is locked and cannot change geometry unless the same Direction Draft proposes unlocking it.`)
   }
   const noteIds = proposal.notes.map((note) => note.id)
   if (new Set(noteIds).size !== noteIds.length || noteIds.some((id) => state.boardItems.some((item) => item.id === id))) return failure(state, 'INVALID_BOARD_LAYOUT', 'Direction Draft note IDs must be unique on this board.')
@@ -198,6 +199,11 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       return {
         ...state,
         boardItems: state.boardItems.map((item) => item.id === effect.itemId ? { ...item, width: effect.previousSize.width, height: effect.previousSize.height } : item),
+      }
+    case 'lock':
+      return {
+        ...state,
+        boardItems: state.boardItems.map((item) => item.id === effect.itemId ? { ...item, locked: effect.previousLocked } : item),
       }
   }
 }
@@ -403,7 +409,8 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
     case 'move-board-item': {
       const item = state.boardItems.find((candidate) => candidate.id === command.itemId)
       if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The board item no longer exists.')
-      if (item.locked) return failure(state, 'LOCKED_REFERENCE', 'Locked references cannot be moved.')
+      if (item.locked) return failure(state, 'LOCKED_REFERENCE', 'Locked board items cannot be moved.')
+      if (!Number.isFinite(command.position.x) || !Number.isFinite(command.position.y) || Math.abs(command.position.x) > 5000 || Math.abs(command.position.y) > 5000) return failure(state, 'INVALID_BOARD_LAYOUT', 'Board item positions must remain within the mechanical workspace.')
       return success(
         { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, position: { ...command.position } } : candidate) },
         command, `Moved ${item.title}.`, { type: 'move', itemId: item.id, previousPosition: item.position },
@@ -412,10 +419,22 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
     case 'resize-board-item': {
       const item = state.boardItems.find((candidate) => candidate.id === command.itemId)
       if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The board item no longer exists.')
-      if (item.locked) return failure(state, 'LOCKED_REFERENCE', 'Locked references cannot be resized.')
+      if (item.locked) return failure(state, 'LOCKED_REFERENCE', 'Locked board items cannot be resized.')
+      const minimumHeight = item.kind === 'color-strip' ? 16 : 60
+      if (!Number.isFinite(command.width) || !Number.isFinite(command.height) || command.width < 80 || command.width > 1200 || command.height < minimumHeight || command.height > 1200) return failure(state, 'INVALID_BOARD_LAYOUT', 'Board item dimensions must remain within the supported range.')
       return success(
         { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, width: command.width, height: command.height } : candidate) },
         command, `Resized ${item.title}.`, { type: 'resize', itemId: item.id, previousSize: { width: item.width, height: item.height } },
+      )
+    }
+    case 'set-board-item-lock': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can directly change a board item lock.')
+      const item = state.boardItems.find((candidate) => candidate.id === command.itemId)
+      if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The board item no longer exists.')
+      if (item.locked === command.locked) return failure(state, 'INVALID_BOARD_LAYOUT', `${item.title} is already ${command.locked ? 'locked' : 'unlocked'}.`)
+      return success(
+        { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, locked: command.locked } : candidate) },
+        command, `${command.locked ? 'Locked' : 'Unlocked'} ${item.title}.`, { type: 'lock', itemId: item.id, previousLocked: item.locked },
       )
     }
     case 'undo-receipt': {

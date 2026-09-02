@@ -15,12 +15,12 @@ describe('review flow', () => {
     const view = render(<><ReviewTray runtime={runtime} snapshot={runtime.getSnapshot()} /><ActionReceipt runtime={runtime} /></>)
     fireEvent.click(screen.getByRole('button', { name: /approve to floral artifact/i }))
     expect(runtime.getSnapshot().version).toBe(4)
-    expect(runtime.getSnapshot().boardItems).toHaveLength(6)
+    expect(runtime.getSnapshot().boardItems).toHaveLength(8)
     expect(runtime.getSnapshot().proposals[0].status).toBe('approved')
     view.rerender(<><ReviewTray runtime={runtime} snapshot={runtime.getSnapshot()} /><ActionReceipt runtime={runtime} receipt={runtime.getSnapshot().receipts[0]} /></>)
     fireEvent.click(screen.getByRole('button', { name: /undo/i }))
     expect(runtime.getSnapshot().version).toBe(5)
-    expect(runtime.getSnapshot().boardItems).toHaveLength(5)
+    expect(runtime.getSnapshot().boardItems).toHaveLength(7)
     expect(runtime.getSnapshot().proposals[0].status).toBe('pending')
   })
 
@@ -32,7 +32,7 @@ describe('review flow', () => {
     expect(runtime.getSnapshot().receipts[0].action).toBe('set-placement-policy')
     view.rerender(<ReviewTray runtime={runtime} snapshot={runtime.getSnapshot()} />)
     fireEvent.click(screen.getByRole('button', { name: /^reject$/i }))
-    expect(runtime.getSnapshot().boardItems).toHaveLength(5)
+    expect(runtime.getSnapshot().boardItems).toHaveLength(7)
     expect(runtime.getSnapshot().proposals[0].status).toBe('rejected')
   })
 

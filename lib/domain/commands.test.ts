@@ -80,6 +80,32 @@ describe('applyWorkspaceCommand', () => {
     expect(resized.receipt.undo?.type).toBe('resize')
   })
 
+  it('lets only the designer directly change a lock and restores it through Undo', () => {
+    const initial = createDemoWorkspaceState()
+    const proof = initial.boardItems.find((item) => item.kind === 'campaign-proof')!
+    const blocked = applyWorkspaceCommand(initial, {
+      type: 'set-board-item-lock', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'agent-lock', actor: 'agent', itemId: proof.id, locked: true,
+    })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+
+    const locked = applyWorkspaceCommand(initial, {
+      type: 'set-board-item-lock', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'designer-lock', actor: 'designer', itemId: proof.id, locked: true,
+    })
+    expect(locked.ok).toBe(true)
+    if (!locked.ok) return
+    expect(locked.state.boardItems.find((item) => item.id === proof.id)?.locked).toBe(true)
+    expect(locked.receipt.undo).toMatchObject({ type: 'lock', itemId: proof.id, previousLocked: false })
+
+    const undone = applyWorkspaceCommand(locked.state, {
+      type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: locked.state.version, idempotencyKey: 'undo-lock', actor: 'designer', receiptId: locked.receipt.id,
+    })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) expect(undone.state.boardItems.find((item) => item.id === proof.id)?.locked).toBe(false)
+  })
+
   it('rejects without placing an item', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, {
