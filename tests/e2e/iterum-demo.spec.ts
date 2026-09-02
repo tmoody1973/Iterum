@@ -66,7 +66,7 @@ test('shows the safe Preview state without a model context', async ({ page }) =>
 test('extracts and saves a deterministic local color palette from a reference crop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
-  await page.getByRole('banner', { name: 'Iterum' }).getByRole('button', { name: 'Color', exact: true }).click()
+  await page.getByRole('main', { name: 'Working mechanical' }).getByRole('button', { name: 'Color', exact: true }).click()
   const studio = page.getByRole('complementary', { name: 'Color studio' })
   await expect(studio).toBeVisible()
   await expect(studio.getByRole('button', { name: 'Save canonical extraction' })).toBeEnabled()
