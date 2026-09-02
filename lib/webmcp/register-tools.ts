@@ -1,8 +1,9 @@
 import type { WebMCPTool } from '../../types/webmcp'
 import { boundsForItems, fitBounds, itemIntersectsBounds, visibleWorldBounds, viewportCenter, viewportFromCenter, type BoardViewportController } from '../board/viewport'
+import { projectBoardLayout } from '../domain/board-layout'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
-import type { Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
+import type { BoardLayoutProposal, BoardNoteDraft, Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
 import { isolateImageBackground } from '../image/isolate-background'
 import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
@@ -13,6 +14,11 @@ const hasExactKeys = (value: Record<string, unknown>, allowed: string[]) => Obje
 const finitePoint = (value: unknown): value is { x: number; y: number } => isObject(value) && hasExactKeys(value, ['x', 'y']) && Number.isFinite(value.x) && Number.isFinite(value.y)
 const typefaceKeys = ['id', 'family', 'category', 'source', 'sourceLabel', 'license', 'referenceOnly', 'weights', 'styles', 'cssUrl', 'referenceUrl']
 
+export interface ReviewUiController {
+  previewLayoutProposal(id: string | null): void
+  openReview(): void
+}
+
 function parsedTypeface(value: unknown): TypefaceCandidate | null {
   if (!isObject(value) || !hasExactKeys(value, typefaceKeys) || typeof value.id !== 'string' || !value.id || typeof value.family !== 'string' || !value.family || !['serif', 'sans-serif', 'display', 'handwriting', 'monospace'].includes(String(value.category)) || !['fontsource', 'google-fonts', 'commercial-reference'].includes(String(value.source)) || typeof value.sourceLabel !== 'string' || !value.sourceLabel || typeof value.license !== 'string' || !value.license || typeof value.referenceOnly !== 'boolean' || !Array.isArray(value.weights) || !value.weights.length || !value.weights.every((weight) => Number.isInteger(weight) && Number(weight) >= 100 && Number(weight) <= 900) || !Array.isArray(value.styles) || !value.styles.length || !value.styles.every((style) => ['normal', 'italic'].includes(String(style))) || (value.cssUrl !== undefined && !isPublicHttpUrl(value.cssUrl)) || (value.referenceUrl !== undefined && !isPublicHttpUrl(value.referenceUrl)) || (value.source === 'commercial-reference' && !value.referenceOnly)) return null
   return value as unknown as TypefaceCandidate
@@ -22,6 +28,26 @@ function parsedTypeDirection(value: unknown): Omit<TypeDirection, 'id'> & { id: 
   if (!isObject(value) || !hasExactKeys(value, ['id', 'headline', 'body', 'specimenText', 'rationale']) || typeof value.id !== 'string' || !value.id || typeof value.specimenText !== 'string' || !value.specimenText.trim() || value.specimenText.length > 180 || typeof value.rationale !== 'string' || !value.rationale.trim() || value.rationale.length > 320) return null
   const headline = parsedTypeface(value.headline); const body = parsedTypeface(value.body)
   return headline && body ? { id: value.id, headline, body, specimenText: value.specimenText.trim(), rationale: value.rationale.trim() } : null
+}
+
+const layoutChangeKeys = ['itemId', 'position', 'width', 'height', 'territory', 'groupId', 'groupLabel']
+const noteKeys = ['id', 'title', 'body', 'tone', 'territory', 'position', 'width', 'height']
+
+function parsedBoardNote(value: unknown): BoardNoteDraft | null {
+  if (!isObject(value) || !hasExactKeys(value, noteKeys) || typeof value.id !== 'string' || !value.id || typeof value.title !== 'string' || !value.title.trim() || typeof value.body !== 'string' || !value.body.trim() || !['blue', 'ruby', 'paper'].includes(String(value.tone)) || typeof value.territory !== 'string' || !value.territory.trim() || !finitePoint(value.position) || typeof value.width !== 'number' || !Number.isFinite(value.width) || typeof value.height !== 'number' || !Number.isFinite(value.height)) return null
+  return { id: value.id, title: value.title, body: value.body, tone: value.tone as BoardNoteDraft['tone'], territory: value.territory, position: value.position, width: value.width, height: value.height }
+}
+
+function parsedBoardLayout(value: unknown): Omit<BoardLayoutProposal, 'status'> | null {
+  if (!isObject(value) || !hasExactKeys(value, ['id', 'title', 'rationale', 'changes', 'notes']) || typeof value.id !== 'string' || !value.id || typeof value.title !== 'string' || !value.title.trim() || typeof value.rationale !== 'string' || !value.rationale.trim() || !Array.isArray(value.changes) || !Array.isArray(value.notes) || value.changes.length + value.notes.length < 1 || value.changes.length > 30 || value.notes.length > 12) return null
+  const changes = value.changes.map((change) => {
+    if (!isObject(change) || !hasExactKeys(change, layoutChangeKeys) || typeof change.itemId !== 'string' || !change.itemId || (change.position !== undefined && !finitePoint(change.position)) || (change.width !== undefined && (typeof change.width !== 'number' || !Number.isFinite(change.width))) || (change.height !== undefined && (typeof change.height !== 'number' || !Number.isFinite(change.height))) || (change.territory !== undefined && (typeof change.territory !== 'string' || !change.territory.trim())) || (change.groupId !== undefined && (typeof change.groupId !== 'string' || !change.groupId.trim())) || (change.groupLabel !== undefined && (typeof change.groupLabel !== 'string' || !change.groupLabel.trim()))) return null
+    return { itemId: change.itemId, ...(finitePoint(change.position) ? { position: change.position } : {}), ...(typeof change.width === 'number' ? { width: change.width } : {}), ...(typeof change.height === 'number' ? { height: change.height } : {}), ...(typeof change.territory === 'string' ? { territory: change.territory } : {}), ...(typeof change.groupId === 'string' ? { groupId: change.groupId } : {}), ...(typeof change.groupLabel === 'string' ? { groupLabel: change.groupLabel } : {}) }
+  })
+  if (changes.some((change) => !change)) return null
+  const notes = value.notes.map(parsedBoardNote)
+  if (notes.some((note) => !note)) return null
+  return { id: value.id, title: value.title, rationale: value.rationale, changes: changes as Omit<BoardLayoutProposal, 'status'>['changes'], notes: notes as BoardNoteDraft[] }
 }
 
 function invalid(state: WorkspaceState, message: string) { return failure(state, 'VALIDATION_ERROR', message) }
@@ -55,6 +81,10 @@ const proposalProperties = {
   id: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, imageUrl: { type: 'string' }, sourceUrl: { type: 'string', minLength: 1 }, attribution: { type: 'string', minLength: 1 }, rightsStatus: { type: 'string', enum: ['cleared', 'reference-only', 'uncertain'] }, rationale: { type: 'string', minLength: 1 }, intendedTerritory: { type: 'string', minLength: 1 }, crop: cropProperties, captureProvider: { type: 'string', enum: ['microlink', 'pexels', 'manual', 'web-clipper'] }, directPlacement: { type: 'boolean' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
 }
 const typefaceProperties = { id: { type: 'string', minLength: 1 }, family: { type: 'string', minLength: 1 }, category: { type: 'string', enum: ['serif', 'sans-serif', 'display', 'handwriting', 'monospace'] }, source: { type: 'string', enum: ['fontsource', 'google-fonts', 'commercial-reference'] }, sourceLabel: { type: 'string', minLength: 1 }, license: { type: 'string', minLength: 1 }, referenceOnly: { type: 'boolean' }, weights: { type: 'array', items: { type: 'integer', minimum: 100, maximum: 900 }, minItems: 1 }, styles: { type: 'array', items: { type: 'string', enum: ['normal', 'italic'] }, minItems: 1 }, cssUrl: { type: 'string' }, referenceUrl: { type: 'string' } }
+const pointProperties = { type: 'object', properties: { x: { type: 'number', minimum: -5000, maximum: 5000 }, y: { type: 'number', minimum: -5000, maximum: 5000 } }, required: ['x', 'y'], additionalProperties: false }
+const layoutChangeProperties = { type: 'object', properties: { itemId: { type: 'string', minLength: 1, maxLength: 80 }, position: pointProperties, width: { type: 'number', minimum: 80, maximum: 1200 }, height: { type: 'number', minimum: 60, maximum: 1200 }, territory: { type: 'string', minLength: 1, maxLength: 80 }, groupId: { type: 'string', minLength: 1, maxLength: 80 }, groupLabel: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['itemId'], additionalProperties: false }
+const boardNoteProperties = { type: 'object', properties: { id: { type: 'string', minLength: 1, maxLength: 80 }, title: { type: 'string', minLength: 1, maxLength: 120 }, body: { type: 'string', minLength: 1, maxLength: 500 }, tone: { type: 'string', enum: ['blue', 'ruby', 'paper'] }, territory: { type: 'string', minLength: 1, maxLength: 80 }, position: pointProperties, width: { type: 'number', minimum: 140, maximum: 800 }, height: { type: 'number', minimum: 100, maximum: 800 } }, required: ['id', 'title', 'body', 'tone', 'territory', 'position', 'width', 'height'], additionalProperties: false }
+const boardLayoutProperties = { type: 'object', properties: { id: { type: 'string', minLength: 1, maxLength: 80 }, title: { type: 'string', minLength: 1, maxLength: 120 }, rationale: { type: 'string', minLength: 1, maxLength: 320 }, changes: { type: 'array', items: layoutChangeProperties, maxItems: 30 }, notes: { type: 'array', items: boardNoteProperties, maxItems: 12 } }, required: ['id', 'title', 'rationale', 'changes', 'notes'], additionalProperties: false }
 const mutationProperties = { campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1 } }
 const harmonyModes = ['monochrome', 'monochrome-dark', 'monochrome-light', 'analogic', 'complement', 'analogic-complement', 'triad', 'quad'] as const
 const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value)
@@ -82,13 +112,13 @@ function viewportAvailable(controller: BoardViewportController | undefined): con
   return Number.isFinite(size.width) && Number.isFinite(size.height) && size.width > 0 && size.height > 0
 }
 
-export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController(), viewportController?: BoardViewportController): Promise<RegisteredTools | null> {
+export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController(), viewportController?: BoardViewportController, reviewUi?: ReviewUiController): Promise<RegisteredTools | null> {
   if (!document.modelContext) return null
   const tools: WebMCPTool[] = [
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, layoutProposals: state.layoutProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
     },
     {
       name: 'get_board_viewport', title: 'Read the board viewport', description: 'Read the current presentation-only board zoom, center, mechanical bounds, visible world bounds, and visible items without changing the canonical board.',
@@ -140,6 +170,89 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       },
     },
     {
+      name: 'get_board_items', title: 'Read board items', description: 'Read every current board item with kind, geometry, territory, group, lock state, and note content. Also lists pending Direction Drafts.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
+        return success(state, { items: state.boardItems.map((item) => ({ id: item.id, title: item.title, kind: item.kind, territory: item.territory, groupId: item.groupId, groupLabel: item.groupLabel, locked: item.locked, position: item.position, width: item.width, height: item.height, noteBody: item.noteBody, noteTone: item.noteTone })), pendingDirectionDrafts: state.layoutProposals.filter((proposal) => proposal.status === 'pending').map((proposal) => ({ id: proposal.id, title: proposal.title, changes: proposal.changes.length + proposal.notes.length })) }, `Read ${state.boardItems.length} board items.`)
+      },
+    },
+    {
+      name: 'add_board_note', title: 'Propose a board note', description: 'Add one sourced-free art-direction note to a pending Direction Draft for designer preview and approval. This never places the note directly.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, draftId: { type: 'string', minLength: 1, maxLength: 80 }, rationale: { type: 'string', minLength: 1, maxLength: 320 }, note: boardNoteProperties }, required: [...requiredMutation, 'draftId', 'rationale', 'note'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'draftId', 'rationale', 'note']) || typeof checked.value.draftId !== 'string' || !checked.value.draftId || typeof checked.value.rationale !== 'string' || !checked.value.rationale.trim()) return invalid(state, 'Provide a unique draft ID, rationale, and strict board note.')
+        const note = parsedBoardNote(checked.value.note)
+        if (!note) return invalid(state, 'The note needs short copy, tone, territory, and bounded geometry.')
+        return execute(runtime, { type: 'propose-board-layout', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: { id: checked.value.draftId, title: `Note: ${note.title}`, rationale: checked.value.rationale, changes: [], notes: [note] } })
+      },
+    },
+    {
+      name: 'propose_board_layout', title: 'Propose a Direction Draft', description: 'Create one reviewable batch of board moves, resizes, territory/group assignments, and new notes. Locked references cannot change geometry.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, layout: boardLayoutProperties }, required: [...requiredMutation, 'layout'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'layout'])) return invalid(state, 'layout is the only additional accepted field.')
+        const layout = parsedBoardLayout(checked.value.layout)
+        if (!layout) return invalid(state, 'Provide a strict Direction Draft with at least one bounded change or note.')
+        return execute(runtime, { type: 'propose-board-layout', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: layout })
+      },
+    },
+    {
+      name: 'preview_board_layout', title: 'Preview a Direction Draft', description: 'Project a pending Direction Draft and show its ghost layout on the board without changing canonical board data.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, proposalId: { type: 'string', minLength: 1 } }, required: ['campaignId', 'boardId', 'proposalId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'proposalId']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.proposalId !== 'string' || !input.proposalId) return invalid(state, 'Provide the open campaign and a pending Direction Draft ID.')
+        const proposal = state.layoutProposals.find((item) => item.id === input.proposalId)
+        if (!proposal) return failure(state, 'BOARD_LAYOUT_NOT_FOUND', 'The Direction Draft no longer exists.')
+        if (proposal.status !== 'pending') return failure(state, 'BOARD_LAYOUT_NOT_PENDING', 'Only pending Direction Drafts can be previewed.')
+        const changedIds = new Set([...proposal.changes.map((change) => change.itemId), ...proposal.notes.map((note) => note.id)])
+        const projected = projectBoardLayout(state.boardItems, proposal).filter((item) => changedIds.has(item.id)).map((item) => ({ id: item.id, title: item.title, kind: item.kind, territory: item.territory, groupId: item.groupId, position: item.position, width: item.width, height: item.height }))
+        reviewUi?.previewLayoutProposal(proposal.id); reviewUi?.openReview()
+        return success(state, { proposal: { id: proposal.id, title: proposal.title, rationale: proposal.rationale }, projectedItems: projected }, `Previewing Direction Draft “${proposal.title}”.`, undefined, Boolean(reviewUi))
+      },
+    },
+    {
+      name: 'apply_board_layout', title: 'Request Direction Draft application', description: 'Open a pending Direction Draft at its designer approval boundary. The agent cannot apply the canonical batch itself.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, proposalId: { type: 'string', minLength: 1 } }, required: ['campaignId', 'boardId', 'proposalId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'proposalId']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.proposalId !== 'string' || !input.proposalId) return invalid(state, 'Provide the open campaign and a pending Direction Draft ID.')
+        const proposal = state.layoutProposals.find((item) => item.id === input.proposalId)
+        if (!proposal) return failure(state, 'BOARD_LAYOUT_NOT_FOUND', 'The Direction Draft no longer exists.')
+        if (proposal.status !== 'pending') return failure(state, 'BOARD_LAYOUT_NOT_PENDING', 'Only pending Direction Drafts can be applied.')
+        reviewUi?.previewLayoutProposal(proposal.id); reviewUi?.openReview()
+        return success(state, { proposalId: proposal.id, requiresDesignerApproval: true }, `Direction Draft “${proposal.title}” is ready for designer approval in Review.`, undefined, Boolean(reviewUi))
+      },
+    },
+    {
+      name: 'group_board_items', title: 'Propose a board group', description: 'Propose grouping current board items inside a reviewable Direction Draft. Grouping does not move or resize locked references.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, draftId: { type: 'string', minLength: 1, maxLength: 80 }, groupId: { type: 'string', minLength: 1, maxLength: 80 }, groupLabel: { type: 'string', minLength: 1, maxLength: 80 }, itemIds: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 2, maxItems: 24 }, rationale: { type: 'string', minLength: 1, maxLength: 320 } }, required: [...requiredMutation, 'draftId', 'groupId', 'groupLabel', 'itemIds', 'rationale'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'draftId', 'groupId', 'groupLabel', 'itemIds', 'rationale']) || typeof checked.value.draftId !== 'string' || !checked.value.draftId || typeof checked.value.groupId !== 'string' || !checked.value.groupId || typeof checked.value.groupLabel !== 'string' || !checked.value.groupLabel.trim() || !Array.isArray(checked.value.itemIds) || checked.value.itemIds.length < 2 || checked.value.itemIds.length > 24 || !checked.value.itemIds.every((id) => typeof id === 'string' && id) || typeof checked.value.rationale !== 'string' || !checked.value.rationale.trim()) return invalid(state, 'Provide a unique draft/group, 2–24 current item IDs, and rationale.')
+        const itemIds = [...new Set(checked.value.itemIds as string[])]
+        return execute(runtime, { type: 'propose-board-layout', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: { id: checked.value.draftId, title: `Group: ${checked.value.groupLabel}`, rationale: checked.value.rationale, changes: itemIds.map((itemId) => ({ itemId, groupId: checked.value.groupId as string, groupLabel: checked.value.groupLabel as string })), notes: [] } })
+      },
+    },
+    {
+      name: 'assign_board_territory', title: 'Propose a territory assignment', description: 'Propose assigning current board items to a named territory inside a reviewable Direction Draft.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, draftId: { type: 'string', minLength: 1, maxLength: 80 }, territory: { type: 'string', minLength: 1, maxLength: 80 }, itemIds: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, maxItems: 24 }, rationale: { type: 'string', minLength: 1, maxLength: 320 } }, required: [...requiredMutation, 'draftId', 'territory', 'itemIds', 'rationale'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'draftId', 'territory', 'itemIds', 'rationale']) || typeof checked.value.draftId !== 'string' || !checked.value.draftId || typeof checked.value.territory !== 'string' || !checked.value.territory.trim() || !Array.isArray(checked.value.itemIds) || checked.value.itemIds.length < 1 || checked.value.itemIds.length > 24 || !checked.value.itemIds.every((id) => typeof id === 'string' && id) || typeof checked.value.rationale !== 'string' || !checked.value.rationale.trim()) return invalid(state, 'Provide a unique draft, territory, 1–24 current item IDs, and rationale.')
+        const itemIds = [...new Set(checked.value.itemIds as string[])]
+        return execute(runtime, { type: 'propose-board-layout', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: { id: checked.value.draftId, title: `Territory: ${checked.value.territory}`, rationale: checked.value.rationale, changes: itemIds.map((itemId) => ({ itemId, territory: checked.value.territory as string })), notes: [] } })
+      },
+    },
+    {
       name: 'search_reference_library', title: 'Search the reference library', description: 'Search current board references and pending proposals by title, source, territory, provider, approved tags, or pending tag suggestions without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, query: { type: 'string', maxLength: 120 }, tags: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 32 }, maxItems: 8 }, scope: { type: 'string', enum: ['all', 'on-board', 'in-review'] } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: (input) => {
@@ -149,7 +262,7 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
         const tags = Array.isArray(input.tags) ? input.tags.map((tag) => String(tag).trim().toLocaleLowerCase()) : []
         const scope = input.scope ?? 'all'
         const references = [
-          ...state.boardItems.filter((item) => item.kind !== 'type-specimen').map((item) => ({ id: item.id, type: 'board-item' as const, state: 'on-board' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.territory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
+          ...state.boardItems.filter((item) => item.kind === 'reference' || item.kind === 'agent-addition').map((item) => ({ id: item.id, type: 'board-item' as const, state: 'on-board' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.territory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
           ...state.proposals.filter((item) => item.status === 'pending').map((item) => ({ id: item.id, type: 'proposal' as const, state: 'in-review' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.intendedTerritory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
         ]
         const matches = references.filter((reference) => {

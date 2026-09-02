@@ -215,6 +215,46 @@ describe('applyWorkspaceCommand', () => {
     }
   })
 
+  it('reviews, atomically applies, and undoes a Direction Draft', () => {
+    const initial = createDemoWorkspaceState()
+    const proposal = {
+      id: 'layout-severe-editorial', title: 'Severe editorial pressure', rationale: 'Tighten the type territory and attach an explicit art-direction note.',
+      changes: [
+        { itemId: 'type-specimen-headline', position: { x: 742, y: 430 }, width: 330, height: 190, territory: 'Type pressure', groupId: 'group-type-pressure', groupLabel: 'Type pressure system' },
+        { itemId: 'type-specimen-body', position: { x: 742, y: 640 }, groupId: 'group-type-pressure', groupLabel: 'Type pressure system' },
+      ],
+      notes: [{ id: 'note-type-pressure', title: 'Hold the line', body: 'Keep the typography compressed and severe; let the floral artifact remain the only soft interruption.', tone: 'blue' as const, territory: 'Type pressure', position: { x: 430, y: 760 }, width: 330, height: 130 }],
+    }
+    const proposed = applyWorkspaceCommand(initial, { type: 'propose-board-layout', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'propose-layout', actor: 'agent', proposal })
+    expect(proposed.ok).toBe(true)
+    if (!proposed.ok) return
+    expect(proposed.state.layoutProposals[0].status).toBe('pending')
+    expect(proposed.state.boardItems.find((item) => item.id === 'type-specimen-headline')?.position).toEqual({ x: 790, y: 448 })
+    const blocked = applyWorkspaceCommand(proposed.state, { type: 'review-board-layout', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'agent-layout-approval', actor: 'agent', proposalId: proposal.id, decision: 'approve' })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const approved = applyWorkspaceCommand(proposed.state, { type: 'review-board-layout', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'designer-layout-approval', actor: 'designer', proposalId: proposal.id, decision: 'approve' })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.state.layoutProposals[0].status).toBe('approved')
+    expect(approved.state.boardItems.find((item) => item.id === 'type-specimen-headline')).toMatchObject({ position: { x: 742, y: 430 }, width: 330, groupId: 'group-type-pressure' })
+    expect(approved.state.boardItems.find((item) => item.id === 'note-type-pressure')).toMatchObject({ kind: 'note', noteTone: 'blue' })
+    expect(approved.receipt.summary).toContain('3 changes')
+    const undone = applyWorkspaceCommand(approved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: approved.state.version, idempotencyKey: 'undo-layout', actor: 'designer', receiptId: approved.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (!undone.ok) return
+    expect(undone.state.layoutProposals[0].status).toBe('pending')
+    expect(undone.state.boardItems.some((item) => item.id === 'note-type-pressure')).toBe(false)
+    const restoredHeadline = undone.state.boardItems.find((item) => item.id === 'type-specimen-headline')
+    expect(restoredHeadline).toMatchObject({ position: { x: 790, y: 448 }, width: 286 })
+    expect(restoredHeadline?.groupId).toBeUndefined()
+  })
+
+  it('keeps locked reference geometry out of Direction Drafts', () => {
+    const initial = createDemoWorkspaceState()
+    const result = applyWorkspaceCommand(initial, { type: 'propose-board-layout', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'locked-layout', actor: 'agent', proposal: { id: 'layout-locked', title: 'Move client reference', rationale: 'Should remain protected.', changes: [{ itemId: 'reference-resin-iris', position: { x: 20, y: 20 } }], notes: [] } })
+    expect(result).toMatchObject({ ok: false, error: { code: 'LOCKED_REFERENCE' } })
+  })
+
   it('rejects crop metadata that leaves the source image bounds', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, { type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'invalid-crop', actor: 'designer', proposal: { id: 'bad-crop', title: 'Bad crop', sourceUrl: 'https://example.com', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Invalid.', intendedTerritory: 'Material tension', crop: { x: 80, y: 0, width: 30, height: 100 }, captureProvider: 'manual' } })

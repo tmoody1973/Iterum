@@ -19,6 +19,7 @@ export function createDemoWorkspaceState(): WorkspaceState {
     },
     typeDirection: null,
     typeProposals: [],
+    layoutProposals: [],
     boardItems: [
       { id: 'reference-concrete', title: 'Wet concrete / sodium reflection', kind: 'reference', imageUrl: '/assets/ref-wet-concrete.webp', territory: 'Material tension', position: { x: 56, y: 62 }, width: 276, height: 356, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared', tags: ['wet surface', 'amber light', 'industrial'], tagSuggestions: [] },
       { id: 'reference-resin-iris', title: 'Crushed iris in resin', kind: 'reference', imageUrl: '/assets/ref-resin-iris.webp', territory: 'Floral artifact', position: { x: 388, y: 92 }, width: 300, height: 352, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared', tags: ['botanical', 'resin', 'violet'], tagSuggestions: [] },

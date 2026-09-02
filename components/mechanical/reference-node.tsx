@@ -8,12 +8,14 @@ import type { BoardItem } from '../../lib/domain/types'
 
 export function referenceFilename(item: BoardItem) {
   if (item.kind === 'type-specimen') return `${item.typeRole ?? 'TYPE'}_SPECIMEN`
+  if (item.kind === 'note') return 'DIRECTION_NOTE'
   const path = item.imageUrl?.split('/').pop()
   return (path ?? item.title).replace(/-/g, '_').toUpperCase()
 }
 
 export function referenceSourceClass(item: BoardItem) {
   if (item.kind === 'type-specimen') return 'APPROVED TYPE DIRECTION'
+  if (item.kind === 'note') return 'DIRECTION DRAFT NOTE'
   return item.kind === 'agent-addition' ? 'AGENT PROPOSAL' : item.sourceUrl === 'local-demo' ? 'LOCAL SYNTHETIC' : 'EXTERNAL REFERENCE'
 }
 

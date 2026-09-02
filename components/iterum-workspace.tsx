@@ -52,6 +52,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
   const boardViewport = useUiStore((state) => state.boardViewport)
+  const previewLayoutProposalId = useUiStore((state) => state.previewLayoutProposalId)
   const selectBoardItem = useUiStore((state) => state.selectBoardItem)
   const isBriefDrawerOpen = useUiStore((state) => state.isBriefDrawerOpen)
   const isReviewDrawerOpen = useUiStore((state) => state.isReviewDrawerOpen)
@@ -65,6 +66,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const pendingProposal = snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin' && proposal.status === 'pending')
   const pendingPlacement = proposalPlacementForViewport(canvasSize.width, canvasSize.height)
   const placedProposalItem = snapshot.boardItems.find((item) => item.sourceProposalId === 'proposal-resin')
+  const layoutPreview = snapshot.layoutProposals.find((proposal) => proposal.id === previewLayoutProposalId && proposal.status === 'pending')
   const extractedColors = snapshot.colorPalette.extraction?.colors.map((color) => color.hex) ?? []
   const pinnedColors = snapshot.colorPalette.pinned.map((color) => color.hex)
   const campaignColors = extractedColors.length > 0
@@ -116,7 +118,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           <div className="ruler ruler-top" aria-hidden="true" />
           <section className="pasteboard" aria-label="Static Bloom campaign board">
             <div className="mechanical-canvas-host" ref={canvasHost} aria-hidden="true">
-              {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} proposalPreview={pendingProposal ? { proposal: pendingProposal, position: pendingPlacement } : undefined} />}
+              {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} proposalPreview={pendingProposal ? { proposal: pendingProposal, position: pendingPlacement } : undefined} layoutPreview={layoutPreview} />}
             </div>
             <div className="board-overlay-world" style={{ transform: `translate(${boardViewport.x}px, ${boardViewport.y}px) scale(${boardViewport.scale})` }}>
               <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />

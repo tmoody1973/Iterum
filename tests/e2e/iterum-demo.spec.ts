@@ -63,6 +63,52 @@ test('shows the safe Preview state without a model context', async ({ page }) =>
   await expect(page.getByText('WebMCP preview', { exact: true })).toBeVisible()
 })
 
+test('previews and atomically applies a WebMCP Direction Draft at the designer boundary', async ({ page }) => {
+  await page.addInitScript(() => {
+    const toolRegistry: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => unknown }> = {}
+    ;(window as typeof window & { __iterumTools?: typeof toolRegistry }).__iterumTools = toolRegistry
+    Object.defineProperty(document, 'modelContext', { configurable: true, value: { registerTool: async (tool: { name: string; execute: typeof toolRegistry[string]['execute'] }) => { toolRegistry[tool.name] = tool } } })
+  })
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(28)
+
+  const proposed = await page.evaluate(async () => {
+    const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
+    return tools.propose_board_layout.execute({
+      campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'e2e-direction-draft',
+      layout: {
+        id: 'layout-e2e-type-pressure', title: 'Compressed type pressure', rationale: 'Treat the two specimens as one severe typographic system and pin the direction in place.',
+        changes: [
+          { itemId: 'type-specimen-headline', position: { x: 735, y: 438 }, width: 340, height: 188, groupId: 'group-e2e-type', groupLabel: 'Compressed type system' },
+          { itemId: 'type-specimen-body', position: { x: 735, y: 646 }, width: 340, groupId: 'group-e2e-type', groupLabel: 'Compressed type system' },
+        ],
+        notes: [{ id: 'note-e2e-pressure', title: 'Hold the pressure', body: 'Keep the hierarchy compressed and let the floral artifact remain the only soft interruption.', tone: 'blue', territory: 'Type pressure', position: { x: 390, y: 750 }, width: 320, height: 130 }],
+      },
+    }, { signal: new AbortController().signal })
+  }) as { ok: boolean; boardVersion: number }
+  expect(proposed).toMatchObject({ ok: true, boardVersion: 4 })
+
+  const requested = await page.evaluate(async () => {
+    const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
+    await tools.preview_board_layout.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'layout-e2e-type-pressure' }, { signal: new AbortController().signal })
+    return tools.apply_board_layout.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'layout-e2e-type-pressure' }, { signal: new AbortController().signal })
+  }) as { ok: boolean; boardVersion: number; data: { requiresDesignerApproval: boolean } }
+  expect(requested).toMatchObject({ ok: true, boardVersion: 4, data: { requiresDesignerApproval: true } })
+
+  const draft = page.getByRole('article', { name: 'Direction Draft: Compressed type pressure' })
+  await expect(draft).toBeVisible()
+  await expect(draft.getByRole('button', { name: 'Hide preview' })).toBeVisible()
+  await expect(page.getByText('5 items', { exact: true })).toBeVisible()
+  await draft.getByRole('button', { name: 'Apply direction' }).click()
+  await expect(page.getByText('6 items', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Select Hold the pressure' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/applied direction draft/i)
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByText('5 items', { exact: true })).toBeVisible()
+  await expect(draft).toBeVisible()
+})
+
 test('selects type specimens and navigates the full mechanical', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')

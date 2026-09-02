@@ -5,6 +5,7 @@ import { createDemoWorkspaceState } from '../../lib/domain/demo-data'
 import { createWorkspaceRuntime } from '../../lib/domain/workspace-runtime'
 import { ReviewTray } from './review-tray'
 import { ActionReceipt } from './action-receipt'
+import { useUiStore } from '../../stores/ui-store'
 
 afterEach(cleanup)
 
@@ -33,5 +34,19 @@ describe('review flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /^reject$/i }))
     expect(runtime.getSnapshot().boardItems).toHaveLength(5)
     expect(runtime.getSnapshot().proposals[0].status).toBe('rejected')
+  })
+
+  it('previews and atomically applies a Direction Draft from Review', () => {
+    const runtime = createWorkspaceRuntime(createDemoWorkspaceState())
+    const proposed = runtime.dispatch({ type: 'propose-board-layout', campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedVersion: 3, idempotencyKey: 'review-layout', actor: 'agent', proposal: { id: 'draft-review', title: 'Editorial compression', rationale: 'Group the two type specimens and annotate the pressure.', changes: [{ itemId: 'type-specimen-headline', groupId: 'type-system', groupLabel: 'Type pressure system' }, { itemId: 'type-specimen-body', groupId: 'type-system', groupLabel: 'Type pressure system' }], notes: [{ id: 'note-review', title: 'Keep it severe', body: 'No decorative softness in the typography.', tone: 'blue', territory: 'Type pressure', position: { x: 430, y: 760 }, width: 300, height: 120 }] } })
+    expect(proposed.ok).toBe(true)
+    render(<ReviewTray runtime={runtime} snapshot={runtime.getSnapshot()} />)
+    fireEvent.click(screen.getByRole('button', { name: /preview on board/i }))
+    expect(useUiStore.getState().previewLayoutProposalId).toBe('draft-review')
+    fireEvent.click(screen.getByRole('button', { name: /apply direction/i }))
+    expect(runtime.getSnapshot().version).toBe(5)
+    expect(runtime.getSnapshot().layoutProposals[0].status).toBe('approved')
+    expect(runtime.getSnapshot().boardItems.find((item) => item.id === 'note-review')).toMatchObject({ kind: 'note', noteBody: 'No decorative softness in the typography.' })
+    expect(useUiStore.getState().previewLayoutProposalId).toBeNull()
   })
 })

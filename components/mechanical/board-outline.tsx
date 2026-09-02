@@ -9,6 +9,7 @@ import type { BoardItem, WorkspaceState } from '../../lib/domain/types'
 const STEP = 10
 
 function sourceLabel(item: BoardItem) {
+  if (item.kind === 'note') return 'Direction Draft note'
   if (item.kind === 'type-specimen') return item.attribution ?? 'Approved Iterum type direction'
   return item.sourceUrl === 'local-demo' ? 'Iterum synthetic reference' : item.sourceUrl ?? 'Unrecorded source'
 }
@@ -38,6 +39,7 @@ export function BoardOutline({ snapshot, runtime, selectedId, onSelect }: { snap
         <button type="button" aria-label={`Select ${item.title}`} aria-pressed={selectedId === item.id} onClick={() => onSelect(item.id)} onKeyDown={(event) => onKeyDown(event, item)}>
           <span className="outline-title">{item.title}</span>
           <span className="outline-meta">X {item.position.x} · Y {item.position.y} · {item.width} × {item.height}px</span>
+          {item.groupLabel && <span className="outline-meta">Group: {item.groupLabel}</span>}
           <span className="outline-source">Source: {sourceLabel(item)}</span>
           <span className="outline-actions">{item.locked ? <><LockKeyhole aria-hidden="true" />Locked · inspect/select only</> : <><Move aria-hidden="true" />Arrow keys move · size controls available</>}</span>
         </button><div className="outline-controls">

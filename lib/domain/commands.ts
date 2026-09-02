@@ -1,6 +1,7 @@
 import type {
   ActionReceipt,
   BoardItem,
+  BoardLayoutProposal,
   ColorPalette,
   CropRect,
   ImageIsolation,
@@ -20,6 +21,7 @@ import type {
   WorkspaceCommand,
   WorkspaceState,
 } from './types'
+import { projectBoardLayout } from './board-layout'
 
 const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
@@ -114,6 +116,30 @@ function validTypeDirection(value: TypeDirection) {
     && validTypeface(value.headline) && validTypeface(value.body)
 }
 
+function invalidBoardLayout(state: WorkspaceState, proposal: Omit<BoardLayoutProposal, 'status'>): CommandFailure | undefined {
+  if (!proposal.id?.trim() || proposal.id.length > 80 || !proposal.title?.trim() || proposal.title.length > 120 || !proposal.rationale?.trim() || proposal.rationale.length > 320 || !Array.isArray(proposal.changes) || !Array.isArray(proposal.notes) || proposal.changes.length + proposal.notes.length < 1 || proposal.changes.length > 30 || proposal.notes.length > 12) {
+    return failure(state, 'INVALID_BOARD_LAYOUT', 'A Direction Draft needs an ID, title, rationale, and 1–42 bounded operations.')
+  }
+  const changeIds = proposal.changes.map((change) => change.itemId)
+  if (new Set(changeIds).size !== changeIds.length) return failure(state, 'INVALID_BOARD_LAYOUT', 'Each board item may appear only once in a Direction Draft.')
+  for (const change of proposal.changes) {
+    const item = state.boardItems.find((candidate) => candidate.id === change.itemId)
+    if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', `Board item ${change.itemId} no longer exists.`)
+    const hasChange = change.position !== undefined || change.width !== undefined || change.height !== undefined || change.territory !== undefined || change.groupId !== undefined
+    if (!hasChange || (change.position && (!Number.isFinite(change.position.x) || !Number.isFinite(change.position.y) || Math.abs(change.position.x) > 5000 || Math.abs(change.position.y) > 5000)) || (change.width !== undefined && (!Number.isFinite(change.width) || change.width < 80 || change.width > 1200)) || (change.height !== undefined && (!Number.isFinite(change.height) || change.height < 60 || change.height > 1200)) || (change.territory !== undefined && (!change.territory.trim() || change.territory.length > 80)) || (change.groupId !== undefined && (!change.groupId.trim() || change.groupId.length > 80 || !change.groupLabel?.trim() || change.groupLabel.length > 80)) || (change.groupLabel !== undefined && change.groupId === undefined)) {
+      return failure(state, 'INVALID_BOARD_LAYOUT', `The proposed change for ${item.title} is invalid.`)
+    }
+    if (item.locked && (change.position || change.width !== undefined || change.height !== undefined)) return failure(state, 'LOCKED_REFERENCE', `${item.title} is locked and cannot change geometry.`)
+  }
+  const noteIds = proposal.notes.map((note) => note.id)
+  if (new Set(noteIds).size !== noteIds.length || noteIds.some((id) => state.boardItems.some((item) => item.id === id))) return failure(state, 'INVALID_BOARD_LAYOUT', 'Direction Draft note IDs must be unique on this board.')
+  for (const note of proposal.notes) {
+    if (!note.id?.trim() || note.id.length > 80 || !note.title?.trim() || note.title.length > 120 || !note.body?.trim() || note.body.length > 500 || !['blue', 'ruby', 'paper'].includes(note.tone) || !note.territory?.trim() || note.territory.length > 80 || !Number.isFinite(note.position?.x) || !Number.isFinite(note.position?.y) || Math.abs(note.position.x) > 5000 || Math.abs(note.position.y) > 5000 || !Number.isFinite(note.width) || note.width < 140 || note.width > 800 || !Number.isFinite(note.height) || note.height < 100 || note.height > 800) {
+      return failure(state, 'INVALID_BOARD_LAYOUT', 'Each board note needs bounded geometry, short copy, a territory, and a supported tone.')
+    }
+  }
+}
+
 function withProposalStatus(state: WorkspaceState, proposalId: string, status: ProposalStatus): WorkspaceState {
   return { ...state, proposals: state.proposals.map((proposal) => proposal.id === proposalId ? { ...proposal, status } : proposal) }
 }
@@ -153,6 +179,16 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       return { ...state, typeProposals: state.typeProposals.filter((proposal) => proposal.id !== effect.proposalId) }
     case 'type-direction-decision':
       return { ...state, typeDirection: effect.previousDirection, typeProposals: state.typeProposals.map((proposal) => proposal.id === effect.proposalId ? { ...proposal, status: effect.previousStatus } : proposal) }
+    case 'board-layout-proposal':
+      return { ...state, layoutProposals: state.layoutProposals.filter((proposal) => proposal.id !== effect.proposalId) }
+    case 'board-layout-decision': {
+      const previous = new Map(effect.previousItems.map((item) => [item.id, item]))
+      return {
+        ...state,
+        boardItems: state.boardItems.filter((item) => !effect.addedItemIds.includes(item.id)).map((item) => previous.get(item.id) ?? item),
+        layoutProposals: state.layoutProposals.map((proposal) => proposal.id === effect.proposalId ? { ...proposal, status: effect.previousStatus } : proposal),
+      }
+    }
     case 'move':
       return {
         ...state,
@@ -318,6 +354,50 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         { ...state, typeDirection: nextDirection, typeProposals: state.typeProposals.map((item) => item.id === proposal.id ? { ...item, status: command.decision === 'approve' ? 'approved' : 'rejected' } : item) }, command,
         `${command.decision === 'approve' ? 'Approved' : 'Rejected'} ${proposal.headline.family} + ${proposal.body.family}.`,
         { type: 'type-direction-decision', proposalId: proposal.id, previousStatus: proposal.status, previousDirection: state.typeDirection },
+      )
+    }
+    case 'propose-board-layout': {
+      if (state.layoutProposals.some((proposal) => proposal.id === command.proposal.id)) return failure(state, 'INVALID_BOARD_LAYOUT', 'A Direction Draft with this ID already exists.')
+      const invalid = invalidBoardLayout(state, command.proposal)
+      if (invalid) return invalid
+      const proposal: BoardLayoutProposal = {
+        ...command.proposal,
+        title: command.proposal.title.trim(),
+        rationale: command.proposal.rationale.trim(),
+        changes: command.proposal.changes.map((change) => ({ ...change, ...(change.position ? { position: { ...change.position } } : {}), ...(change.territory ? { territory: change.territory.trim() } : {}), ...(change.groupId ? { groupId: change.groupId.trim(), groupLabel: change.groupLabel?.trim() } : {}) })),
+        notes: command.proposal.notes.map((note) => ({ ...note, title: note.title.trim(), body: note.body.trim(), territory: note.territory.trim(), position: { ...note.position } })),
+        status: 'pending',
+      }
+      return success(
+        { ...state, layoutProposals: [proposal, ...state.layoutProposals] }, command,
+        `Added Direction Draft “${proposal.title}” to review.`,
+        { type: 'board-layout-proposal', proposalId: proposal.id },
+      )
+    }
+    case 'review-board-layout': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can apply or reject a Direction Draft.')
+      const proposal = state.layoutProposals.find((item) => item.id === command.proposalId)
+      if (!proposal) return failure(state, 'BOARD_LAYOUT_NOT_FOUND', 'The Direction Draft no longer exists.')
+      if (proposal.status !== 'pending') return failure(state, 'BOARD_LAYOUT_NOT_PENDING', 'Only pending Direction Drafts can be reviewed.')
+      if (command.decision === 'reject') {
+        return success(
+          { ...state, layoutProposals: state.layoutProposals.map((item) => item.id === proposal.id ? { ...item, status: 'rejected' } : item) }, command,
+          `Rejected Direction Draft “${proposal.title}”.`,
+          { type: 'board-layout-decision', proposalId: proposal.id, previousStatus: proposal.status, previousItems: [], addedItemIds: [] },
+        )
+      }
+      const invalid = invalidBoardLayout(state, proposal)
+      if (invalid) return invalid
+      const affectedIds = new Set(proposal.changes.map((change) => change.itemId))
+      const previousItems = state.boardItems.filter((item) => affectedIds.has(item.id)).map((item) => ({ ...item, position: { ...item.position } }))
+      return success(
+        {
+          ...state,
+          boardItems: projectBoardLayout(state.boardItems, proposal),
+          layoutProposals: state.layoutProposals.map((item) => item.id === proposal.id ? { ...item, status: 'approved' } : item),
+        }, command,
+        `Applied Direction Draft “${proposal.title}” with ${proposal.changes.length + proposal.notes.length} changes.`,
+        { type: 'board-layout-decision', proposalId: proposal.id, previousStatus: proposal.status, previousItems, addedItemIds: proposal.notes.map((note) => note.id) },
       )
     }
     case 'move-board-item': {

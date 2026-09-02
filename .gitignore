@@ -6,6 +6,7 @@ node_modules/
 .next/
 .vitest/
 .playwright/
+test-results/
 *.tsbuildinfo
 .env*
 !.env.example

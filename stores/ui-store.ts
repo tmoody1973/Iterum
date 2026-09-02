@@ -10,6 +10,7 @@ export type WebMcpStatus = 'preview' | 'ready' | 'error'
 
 export interface UiState {
   selectedBoardItemId: string | null
+  previewLayoutProposalId: string | null
   activeRightTab: RightTab
   activeTool: ActiveTool
   webMcpStatus: WebMcpStatus
@@ -21,6 +22,7 @@ export interface UiState {
   isBriefDrawerOpen: boolean
   isReviewDrawerOpen: boolean
   selectBoardItem: (id: string | null) => void
+  setPreviewLayoutProposal: (id: string | null) => void
   setActiveRightTab: (tab: RightTab) => void
   setActiveTool: (tool: ActiveTool) => void
   setWebMcpStatus: (status: WebMcpStatus) => void
@@ -34,6 +36,7 @@ export interface UiState {
 /** Transient presentation state only; canonical workspace data stays in WorkspaceRuntime. */
 export const useUiStore = create<UiState>()((set) => ({
   selectedBoardItemId: null,
+  previewLayoutProposalId: null,
   activeRightTab: 'review',
   activeTool: 'select',
   webMcpStatus: 'preview',
@@ -45,6 +48,7 @@ export const useUiStore = create<UiState>()((set) => ({
   isBriefDrawerOpen: false,
   isReviewDrawerOpen: false,
   selectBoardItem: (selectedBoardItemId) => set({ selectedBoardItemId }),
+  setPreviewLayoutProposal: (previewLayoutProposalId) => set({ previewLayoutProposalId }),
   setActiveRightTab: (activeRightTab) => set({ activeRightTab }),
   setActiveTool: (activeTool) => set({ activeTool }),
   setWebMcpStatus: (webMcpStatus) => set({ webMcpStatus }),

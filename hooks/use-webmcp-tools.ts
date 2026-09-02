@@ -17,7 +17,11 @@ export function useWebMcpTools(runtime: WorkspaceRuntime) {
       getViewportSize: () => useUiStore.getState().boardViewportSize,
       setViewport: (viewport: ReturnType<typeof useUiStore.getState>['boardViewport'], mode: 'fit' | 'custom' = 'custom') => useUiStore.getState().setBoardViewport(viewport, mode),
     }
-    registerIterumTools(runtime, controller, viewportController).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
+    const reviewUi = {
+      previewLayoutProposal: (id: string | null) => useUiStore.getState().setPreviewLayoutProposal(id),
+      openReview: () => { useUiStore.getState().setActiveRightTab('review'); useUiStore.getState().setReviewDrawerOpen(true) },
+    }
+    registerIterumTools(runtime, controller, viewportController, reviewUi).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
     return () => { active = false; controller.abort() }
   }, [runtime, setStatus])
 }

@@ -62,8 +62,12 @@ export interface Campaign {
 export interface BoardItem {
   id: string
   title: string
-  kind: 'reference' | 'agent-addition' | 'type-specimen'
+  kind: 'reference' | 'agent-addition' | 'type-specimen' | 'note'
   typeRole?: 'headline' | 'body'
+  noteBody?: string
+  noteTone?: 'blue' | 'ruby' | 'paper'
+  groupId?: string
+  groupLabel?: string
   imageUrl?: string
   sourceUrl?: string
   attribution?: string
@@ -84,6 +88,36 @@ export interface BoardItem {
 
 export type RightsStatus = 'cleared' | 'reference-only' | 'uncertain'
 export type ProposalStatus = 'pending' | 'approved' | 'rejected'
+
+export interface BoardLayoutChange {
+  itemId: string
+  position?: Point
+  width?: number
+  height?: number
+  territory?: string
+  groupId?: string
+  groupLabel?: string
+}
+
+export interface BoardNoteDraft {
+  id: string
+  title: string
+  body: string
+  tone: 'blue' | 'ruby' | 'paper'
+  territory: string
+  position: Point
+  width: number
+  height: number
+}
+
+export interface BoardLayoutProposal {
+  id: string
+  title: string
+  rationale: string
+  changes: BoardLayoutChange[]
+  notes: BoardNoteDraft[]
+  status: ProposalStatus
+}
 
 export interface Proposal {
   id: string
@@ -142,6 +176,8 @@ export type UndoEffect =
   | { type: 'tag-decision'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; previousStatus: TagSuggestionStatus; previousTags: string[] }
   | { type: 'type-direction-proposal'; proposalId: string }
   | { type: 'type-direction-decision'; proposalId: string; previousStatus: ProposalStatus; previousDirection: TypeDirection | null }
+  | { type: 'board-layout-proposal'; proposalId: string }
+  | { type: 'board-layout-decision'; proposalId: string; previousStatus: ProposalStatus; previousItems: BoardItem[]; addedItemIds: string[] }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
@@ -169,6 +205,7 @@ export interface WorkspaceState {
   colorPalette: ColorPalette
   typeDirection: TypeDirection | null
   typeProposals: TypeDirectionProposal[]
+  layoutProposals: BoardLayoutProposal[]
   boardItems: BoardItem[]
   proposals: Proposal[]
   receipts: ActionReceipt[]
@@ -197,6 +234,8 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'review-reference-tags'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'propose-type-direction'; proposal: Omit<TypeDirectionProposal, 'status'> })
   | (CommandBase & { type: 'review-type-direction'; proposalId: string; decision: 'approve' | 'reject' })
+  | (CommandBase & { type: 'propose-board-layout'; proposal: Omit<BoardLayoutProposal, 'status'> })
+  | (CommandBase & { type: 'review-board-layout'; proposalId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
@@ -219,6 +258,9 @@ export type CommandErrorCode =
   | 'TYPE_DIRECTION_NOT_FOUND'
   | 'TYPE_DIRECTION_NOT_PENDING'
   | 'INVALID_TYPE_DIRECTION'
+  | 'BOARD_LAYOUT_NOT_FOUND'
+  | 'BOARD_LAYOUT_NOT_PENDING'
+  | 'INVALID_BOARD_LAYOUT'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'
