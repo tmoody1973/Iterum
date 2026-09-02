@@ -33,13 +33,14 @@
 
 - `npm run typecheck` — pass.
 - `npm test` — pass, 26 tests.
-- `npm run test:e2e` — pass, 4 tests.
+- `npm run test:e2e` — pass, 5 tests.
 - `npm run build` — pass.
 
 ## Commit
 
 - `d3395b9d472aa965c3510d5ae417f23dba3b76c7` — `Finish Iterum browser proof`.
 - `eea495c` — `Fix Iterum browser review findings`; post-fix typecheck, 26 unit tests, 4 E2E tests, and build passed. The three evidence PNGs were then recaptured from this production build at the same required viewports and manually validated.
+- `1ed3571` — `Show approved proposal on mechanical`; typecheck, 26 unit tests, 5 E2E tests, and build passed. Final evidence was recaptured from this production build after approval, showing the in-bounds reference, matching coordinate receipt, and usable Undo on desktop and phone.
 
 ## Concerns
 
