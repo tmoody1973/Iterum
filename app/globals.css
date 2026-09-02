@@ -69,3 +69,86 @@
 .direction-draft-card footer .is-previewing{background:#315f98;border-color:#4779b8;color:#fff}
 .direction-draft-card footer .approve{border-color:#4779b8;color:#9cc3f4}
 .direction-draft-card footer .approve:hover{background:var(--green);border-color:var(--green);color:#fff}
+
+/* Accessible product type scale. Board artwork keeps its authored typography. */
+:root{
+  --ui-label-size:12px;
+  --ui-body-size:13px;
+  --ui-leading:1.5;
+  --ui-control-height:32px;
+}
+
+.top-toolbar,.bottom-mode-bar{font-size:var(--ui-label-size);line-height:1.35}
+.top-toolbar{gap:14px;padding-inline:20px}
+.tool-list{margin-left:12px}
+.tool-button{min-height:44px;padding-inline:11px;font-size:var(--ui-label-size)}
+.view-readout{gap:6px}
+.bottom-mode-bar nav button{min-height:44px;padding-inline:16px;font-size:var(--ui-label-size)}
+
+.job-ticket{overflow-y:auto;font-size:var(--ui-body-size);line-height:var(--ui-leading)}
+.ticket-topline,.review-heading,.mechanical-meta{padding-inline:14px;font-size:var(--ui-label-size);line-height:1.35}
+.ticket-title,.ticket-copy,.version-history,.attachments{padding-inline:14px}
+.ticket-copy h2,.version-history h2,.attachments h2,.agent-note h3{font-size:var(--ui-label-size);line-height:1.35}
+.ticket-copy p,.ticket-copy ul,.attachments ul{font-size:var(--ui-body-size);line-height:var(--ui-leading)}
+.ticket-facts dt,.ticket-facts dd{padding-inline:10px;line-height:1.35}
+.version-history li{grid-template-columns:34px 58px minmax(0,1fr);gap:3px;line-height:1.35}
+.ticket-footer{padding-inline:14px;font-size:var(--ui-label-size);line-height:1.35}
+
+.review-heading h2,.review-heading span,.review-tabs button{font-size:var(--ui-label-size);line-height:1.35}
+.review-tabs{gap:14px;padding-inline:12px;overflow-x:auto}
+.review-tabs button{min-height:var(--ui-control-height);white-space:nowrap}
+.proposal-sheet{grid-template-columns:1fr;gap:10px}
+.proposal-sheet>img{height:150px}
+.proposal-number{font-size:var(--ui-label-size);line-height:1.35}
+.proposal-sheet h3{font-size:20px;line-height:1}
+.proposal-sheet dl{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.proposal-sheet dt{width:72px}
+.proposal-sheet dd{margin-left:80px}
+.proposal-actions button,.proposal-derivative-actions button{min-height:38px;font-size:var(--ui-label-size);line-height:1.25}
+.agent-note p,.review-tray>footer,.activity-log,.activity-empty,.isolation-status{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.placement-policy strong,.placement-policy small{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.approval-receipt{font-size:var(--ui-body-size);line-height:var(--ui-leading)}
+.approval-receipt button,.receipt-locked{font-size:var(--ui-label-size);line-height:1.25}
+
+.mechanical-toolbar{font-size:var(--ui-label-size);line-height:1.35}
+.mechanical-toolbar button{min-height:var(--ui-control-height);padding-block:6px}
+.mechanical-viewport-controls output{font-size:var(--ui-label-size)}
+.board-outline-heading,.board-outline-help{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.board-outline li>button:first-child{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.outline-controls button,.outline-delete{min-height:var(--ui-control-height);font-size:var(--ui-label-size);line-height:1.25}
+.outline-actions{align-items:flex-start;line-height:1.35}
+
+.color-studio,.typography-studio,.reference-capture-panel,.reference-library{font-size:var(--ui-body-size);line-height:var(--ui-leading)}
+.color-studio{width:min(430px,calc(100% - 40px))}
+.color-studio label,.color-studio fieldset,.color-section-heading h2,.color-section-heading>span,
+.capture-method h3,.capture-method label,.capture-submit-row label,.captured-reference header,
+.library-entry-state,.type-search label,.type-comparison label,.type-result-meta span,
+.type-result-meta em,.type-role>span,.type-proposal-sheet>p{font-size:var(--ui-label-size);line-height:1.4}
+.color-studio select,.capture-method input,.capture-method select,.library-search input,.library-search select,
+.type-search input,.type-search select,.type-comparison textarea{min-height:var(--ui-control-height);font-size:var(--ui-body-size);line-height:1.4}
+.color-swatch,.color-primary,.color-secondary,.capture-method button,.capture-submit-row button,
+.reference-search-results button,.tag-suggestion button,.type-search-button,.type-propose,.type-results button,
+.type-proposal-sheet button{min-height:var(--ui-control-height);font-size:var(--ui-label-size);line-height:1.25}
+.color-studio-status,.web-clip-notice p,.type-proposal-sheet dl,.type-reference-warning{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.library-entry small,.tag-suggestion small,.type-results article>small,.commercial-toggle small{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.type-proposal-body{font-size:14px;line-height:1.45}
+
+.direction-draft-card header,.direction-draft-rationale,.direction-draft-card li,
+.direction-draft-card footer button{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.direction-draft-card footer button{min-height:38px}
+.workspace small{font-size:inherit;line-height:inherit}
+.placement-projection figcaption{font-size:var(--ui-label-size);line-height:1.4}
+
+@media(max-width:1300px){
+  .top-toolbar{padding-inline:14px;gap:9px}
+  .tool-list{margin-left:4px}
+  .tool-button{padding-inline:8px}
+  .bottom-mode-bar nav button{padding-inline:11px}
+}
+
+@media(max-width:760px){
+  .drawer-controls button{font-size:var(--ui-label-size)}
+  .board-preview-notice{font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+  .proposal-sheet{grid-template-columns:1fr}
+  .proposal-sheet>img{height:180px}
+}
