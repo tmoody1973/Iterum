@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 
 import type { WorkspaceRuntime } from '../../lib/domain/workspace-runtime'
-import type { Proposal, WorkspaceState } from '../../lib/domain/types'
+import type { Point, Proposal, WorkspaceState } from '../../lib/domain/types'
 import { useUiStore } from '../../stores/ui-store'
 import { ProposalCard } from './proposal-card'
 import { ActionReceipt } from './action-receipt'
 
-function proposalCommand(runtime: WorkspaceRuntime, snapshot: WorkspaceState, proposal: Proposal, type: 'approve-proposal' | 'reject-proposal') {
-  return runtime.dispatch({ type, campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id })
+function proposalCommand(runtime: WorkspaceRuntime, snapshot: WorkspaceState, proposal: Proposal, type: 'approve-proposal' | 'reject-proposal', position?: Point) {
+  return type === 'approve-proposal'
+    ? runtime.dispatch({ type, campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, position })
+    : runtime.dispatch({ type, campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id })
 }
 
-export function ReviewTray({ snapshot, runtime, onClose }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; onClose?: () => void }) {
+export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; onClose?: () => void; proposalPlacement?: Point }) {
   const activeRightTab = useUiStore((state) => state.activeRightTab)
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const [isPhone, setIsPhone] = useState(false)
@@ -33,7 +35,7 @@ export function ReviewTray({ snapshot, runtime, onClose }: { snapshot: Workspace
     <div className="review-tabs" role="tablist" aria-label="Proposal galley views"><button role="tab" aria-selected={activeRightTab === 'review'} onClick={() => setActiveRightTab('review')}>Review</button><button role="tab" aria-selected={activeRightTab === 'activity'} onClick={() => setActiveRightTab('activity')}>Activity</button></div>
     {activeRightTab === 'review' ? <>
       <label className="placement-policy"><input type="checkbox" checked={policy.allowAgentDirectPlacement} onChange={togglePolicy} /><span><strong>Allow agent direct placement</strong><small>Restricted to Agent Additions territory.</small></span></label>
-      {pending.length ? <div className="proposal-list">{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal')} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
+      {pending.length ? <div className="proposal-list">{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposal.id === 'proposal-resin' ? proposalPlacement : undefined} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposal.id === 'proposal-resin' ? proposalPlacement : undefined)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
     </> : <div className="activity-log">{snapshot.receipts.length ? snapshot.receipts.map((receipt) => <p key={receipt.id}><strong>V{String(receipt.version).padStart(2, '0')}</strong> {receipt.summary}</p>) : <p className="activity-empty">No agent activity has changed this mechanical.</p>}</div>}
     {isPhone && <div className="mobile-action-receipt"><ActionReceipt receipt={snapshot.receipts[0]} runtime={runtime} /></div>}
     <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references stay in review unless you explicitly grant direct placement.</p></section>

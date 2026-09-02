@@ -4,6 +4,7 @@ import { useWorkspaceSnapshot } from '../hooks/use-workspace-snapshot'
 import { useWebMcpTools } from '../hooks/use-webmcp-tools'
 import { demoRuntime } from '../lib/domain/demo-runtime'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
+import type { Point, Proposal, WorkspaceState } from '../lib/domain/types'
 import { useUiStore } from '../stores/ui-store'
 import { BottomModeBar } from './bottom-mode-bar'
 import { CampaignJobTicket } from './campaign-job-ticket'
@@ -15,6 +16,27 @@ import { useContainerSize } from '../hooks/use-container-size'
 import { useEffect, useRef } from 'react'
 import { ActionReceipt } from './review/action-receipt'
 import { ReviewTray } from './review/review-tray'
+
+const PLACEMENT_SIZE = { width: 224, height: 286 }
+
+/** Keeps human-approved proposal placement inside the measured mechanical viewport. */
+export function proposalPlacementForViewport(width: number, height: number): Point {
+  const safeWidth = Math.max(width, PLACEMENT_SIZE.width + 48)
+  const safeHeight = Math.max(height, PLACEMENT_SIZE.height + 48)
+  return {
+    x: Math.max(24, Math.min(safeWidth - PLACEMENT_SIZE.width - 24, Math.round(safeWidth * 0.68))),
+    y: Math.max(24, Math.min(safeHeight - PLACEMENT_SIZE.height - 24, 120)),
+  }
+}
+
+function PlacementProjection({ proposal, placement, item }: { proposal: Proposal; placement: Point; item?: WorkspaceState['boardItems'][number] }) {
+  const committed = item?.position ?? placement
+  const className = item ? 'placement-projection is-placed' : 'placement-projection is-preview'
+  return <figure className={className} data-testid="proposal-placement" data-placement={`X ${committed.x} · Y ${committed.y}`} style={{ left: committed.x, top: committed.y, width: item?.width ?? PLACEMENT_SIZE.width, height: item?.height ?? PLACEMENT_SIZE.height }}>
+    {proposal.imageUrl ? <img src={proposal.imageUrl} alt={`${proposal.title} ${item ? 'placed on the mechanical' : 'destination preview'}`} /> : <div className="placement-projection-missing">Preview unavailable</div>}
+    <figcaption>{item ? `Waxed at X ${committed.x} · Y ${committed.y}` : `Destination preview · X ${committed.x} · Y ${committed.y}`}</figcaption>
+  </figure>
+}
 
 export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const workspaceRuntime = runtime ?? demoRuntime
@@ -33,6 +55,9 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const reviewTriggerRef = useRef<HTMLButtonElement>(null)
   const canvasSize = useContainerSize(canvasHost)
   const versionLabel = `V${String(snapshot.version).padStart(2, '0')}`
+  const pendingProposal = snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin' && proposal.status === 'pending')
+  const pendingPlacement = proposalPlacementForViewport(canvasSize.width, canvasSize.height)
+  const placedProposalItem = snapshot.boardItems.find((item) => item.sourceProposalId === 'proposal-resin')
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -74,7 +99,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           <section className="pasteboard" aria-label="Static Bloom campaign board">
             <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
             <div className="mechanical-canvas-host" ref={canvasHost} aria-hidden="true">
-              {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />}
+              {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} proposalPreview={pendingProposal ? { proposal: pendingProposal, position: pendingPlacement } : undefined} />}
             </div>
             <article className="poster-proof">
               <span className="tape tape-top" aria-hidden="true" />
@@ -86,12 +111,14 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
               <span className="tape tape-bottom" aria-hidden="true" />
             </article>
             <div className="color-strip" aria-label="Campaign color control strip">{['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d'].map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
+            {pendingProposal && <PlacementProjection proposal={pendingProposal} placement={pendingPlacement} />}
+            {placedProposalItem && <PlacementProjection proposal={snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin')!} placement={pendingPlacement} item={placedProposalItem} />}
           </section>
           <BoardOutline snapshot={snapshot} runtime={workspaceRuntime} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />
           <ActionReceipt receipt={snapshot.receipts[0]} runtime={workspaceRuntime} />
           <p className="board-preview-notice">Board preview · canvas editing continues on desktop</p>
         </main>
-        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={closeReview} />
+        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={closeReview} proposalPlacement={pendingProposal ? pendingPlacement : undefined} />
       </div>
       <BottomModeBar version={snapshot.version} />
     </div>

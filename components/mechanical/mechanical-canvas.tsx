@@ -5,7 +5,7 @@ import { Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import type Konva from 'konva'
 
 import type { WorkspaceRuntime } from '../../lib/domain/workspace-runtime'
-import type { BoardItem, WorkspaceState } from '../../lib/domain/types'
+import type { BoardItem, Point, Proposal, WorkspaceState } from '../../lib/domain/types'
 import { ReferenceNode } from './reference-node'
 
 type RestorableNode = Pick<Konva.Group, 'x' | 'y' | 'width' | 'height' | 'scaleX' | 'scaleY' | 'getLayer' | 'remove'>
@@ -33,7 +33,7 @@ export function restoreNodeFromRuntime(node: RestorableNode, runtime: WorkspaceR
   return false
 }
 
-export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId, onSelect }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; width: number; height: number; selectedId: string | null; onSelect: (id: string | null) => void }) {
+export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId, onSelect, proposalPreview }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; width: number; height: number; selectedId: string | null; onSelect: (id: string | null) => void; proposalPreview?: { proposal: Proposal; position: Point } }) {
   const transformerRef = useRef<Konva.Transformer>(null)
   const nodes = useRef(new Map<string, Konva.Group>())
   const selected = snapshot.boardItems.find((item) => item.id === selectedId)
@@ -74,6 +74,7 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
     <Layer>
       <Rect width={width} height={height} fill="#c8beaf" />
       <Text text="WORKING MECHANICAL · 48 × 72 IN · 300 DPI" x={22} y={18} fontFamily="IBM Plex Mono" fontSize={10} fill="#171717" />
+      {proposalPreview && <><Rect x={proposalPreview.position.x} y={proposalPreview.position.y} width={224} height={286} stroke="#4779b8" strokeWidth={2} dash={[8, 5]} fill="rgba(71,121,184,0.08)" /><Text text={`DESTINATION PREVIEW\n${proposalPreview.proposal.intendedTerritory}`} x={proposalPreview.position.x + 10} y={proposalPreview.position.y + 10} fontFamily="IBM Plex Mono" fontSize={9} fill="#4779b8" /></>}
       {snapshot.boardItems.map((item) => <ReferenceNode key={item.id} item={item} selected={item.id === selectedId} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />)}
       <Transformer ref={transformerRef} rotateEnabled={false} enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']} onTransformEnd={bakeTransform} />
     </Layer>
