@@ -192,6 +192,29 @@ describe('applyWorkspaceCommand', () => {
     }
   })
 
+  it('keeps an agent type direction pending until designer approval and restores it with Undo', () => {
+    const initial = createDemoWorkspaceState()
+    const headline = { id: 'fraunces', family: 'Fraunces', category: 'serif' as const, source: 'fontsource' as const, sourceLabel: 'Fontsource', license: 'Open-source via Fontsource', referenceOnly: false, weights: [400, 700], styles: ['normal'], cssUrl: 'https://cdn.jsdelivr.net/fontsource/css/fraunces@latest/index.css' }
+    const body = { id: 'instrument-sans', family: 'Instrument Sans', category: 'sans-serif' as const, source: 'google-fonts' as const, sourceLabel: 'Google Fonts', license: 'Open-source via Google Fonts', referenceOnly: false, weights: [400, 600], styles: ['normal'] }
+    const proposed = applyWorkspaceCommand(initial, { type: 'propose-type-direction', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-type', actor: 'agent', proposal: { id: 'type-1', headline, body, specimenText: 'The air remembers.', rationale: 'Soft optical tension against a neutral reading face.' } })
+    expect(proposed.ok).toBe(true)
+    if (!proposed.ok) return
+    expect(proposed.state.typeProposals[0].status).toBe('pending')
+    expect(proposed.state.typeDirection).toBeNull()
+    const blocked = applyWorkspaceCommand(proposed.state, { type: 'review-type-direction', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'agent-type-approval', actor: 'agent', proposalId: 'type-1', decision: 'approve' })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const approved = applyWorkspaceCommand(proposed.state, { type: 'review-type-direction', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'designer-type-approval', actor: 'designer', proposalId: 'type-1', decision: 'approve' })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.state.typeDirection).toMatchObject({ headline: { family: 'Fraunces' }, body: { family: 'Instrument Sans' } })
+    const undone = applyWorkspaceCommand(approved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: approved.state.version, idempotencyKey: 'undo-type', actor: 'designer', receiptId: approved.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) {
+      expect(undone.state.typeDirection).toBeNull()
+      expect(undone.state.typeProposals[0].status).toBe('pending')
+    }
+  })
+
   it('rejects crop metadata that leaves the source image bounds', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, { type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'invalid-crop', actor: 'designer', proposal: { id: 'bad-crop', title: 'Bad crop', sourceUrl: 'https://example.com', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Invalid.', intendedTerritory: 'Material tension', crop: { x: 80, y: 0, width: 30, height: 100 }, captureProvider: 'manual' } })

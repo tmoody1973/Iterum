@@ -18,6 +18,8 @@ import { useContainerSize } from '../hooks/use-container-size'
 import { useEffect, useRef } from 'react'
 import { ActionReceipt } from './review/action-receipt'
 import { ReviewTray } from './review/review-tray'
+import { TypographyStudio } from './typography/typography-studio'
+import { fontFamilyFor, useTypefaceStylesheet } from './typography/typeface-sample'
 
 const PLACEMENT_SIZE = { width: 224, height: 286 }
 
@@ -47,6 +49,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   useWebClipIntake(workspaceRuntime)
   const activeTool = useUiStore((state) => state.activeTool)
   const setActiveTool = useUiStore((state) => state.setActiveTool)
+  const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
   const selectBoardItem = useUiStore((state) => state.selectBoardItem)
   const isBriefDrawerOpen = useUiStore((state) => state.isBriefDrawerOpen)
@@ -68,6 +71,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
     : pinnedColors.length > 0
       ? pinnedColors
       : ['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d']
+  useTypefaceStylesheet(snapshot.typeDirection?.headline)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -106,6 +110,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
           {activeTool === 'color' && <ColorStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} />}
+          {activeTool === 'type' && <TypographyStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} onProposed={() => { setActiveTool('select'); setActiveRightTab('review') }} />}
           <div className="ruler ruler-top" aria-hidden="true" />
           <section className="pasteboard" aria-label="Static Bloom campaign board">
             <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
@@ -115,7 +120,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
             <article className="poster-proof">
               <span className="tape tape-top" aria-hidden="true" />
               <p className="poster-brand">ITERUM</p><p className="poster-campaign">Static bloom</p>
-              <h2>The air re-<br />members.</h2>
+              <h2 style={{ fontFamily: fontFamilyFor(snapshot.typeDirection?.headline) }}>The air re-<br />members.</h2>
               <img src="/assets/ref-resin-iris.webp" alt="Crushed iris in resin campaign proof" />
               <p className="poster-notes">ozone<br />crushed iris<br />mineral rain<br />warm concrete<br />skin</p>
               <p className="poster-footer">ITERUM.COM <span>The air remembers.</span></p>

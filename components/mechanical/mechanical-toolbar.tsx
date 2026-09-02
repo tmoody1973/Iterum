@@ -1,6 +1,6 @@
 'use client'
 
-import { LockKeyhole, Move, MousePointer2, Palette, ScanLine } from 'lucide-react'
+import { LockKeyhole, Move, MousePointer2, Palette, ScanLine, Type } from 'lucide-react'
 
 import type { ActiveTool } from '../../stores/ui-store'
 
@@ -8,6 +8,7 @@ const tools: Array<{ id: ActiveTool; label: string; Icon: typeof MousePointer2 }
   { id: 'select', label: 'Select', Icon: MousePointer2 },
   { id: 'crop', label: 'Crop', Icon: ScanLine },
   { id: 'color', label: 'Color', Icon: Palette },
+  { id: 'type', label: 'Type', Icon: Type },
   { id: 'annotate', label: 'Mark', Icon: Move },
 ]
 

@@ -5,6 +5,34 @@ export type CropRect = { x: number; y: number; width: number; height: number }
 export type CaptureProvider = 'microlink' | 'pexels' | 'manual' | 'web-clipper'
 export type ReferenceTargetType = 'proposal' | 'board-item'
 export type TagSuggestionStatus = 'pending' | 'approved' | 'rejected'
+export type TypefaceSource = 'fontsource' | 'google-fonts' | 'commercial-reference'
+export type TypefaceCategory = 'serif' | 'sans-serif' | 'display' | 'handwriting' | 'monospace'
+
+export interface TypefaceCandidate {
+  id: string
+  family: string
+  category: TypefaceCategory
+  source: TypefaceSource
+  sourceLabel: string
+  license: string
+  referenceOnly: boolean
+  weights: number[]
+  styles: string[]
+  cssUrl?: string
+  referenceUrl?: string
+}
+
+export interface TypeDirection {
+  id: string
+  headline: TypefaceCandidate
+  body: TypefaceCandidate
+  specimenText: string
+  rationale: string
+}
+
+export interface TypeDirectionProposal extends TypeDirection {
+  status: ProposalStatus
+}
 
 export interface TagSuggestion {
   id: string
@@ -111,6 +139,8 @@ export type UndoEffect =
   | { type: 'proposal-isolation'; proposalId: string; previous?: ImageIsolation }
   | { type: 'tag-suggestion'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string }
   | { type: 'tag-decision'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; previousStatus: TagSuggestionStatus; previousTags: string[] }
+  | { type: 'type-direction-proposal'; proposalId: string }
+  | { type: 'type-direction-decision'; proposalId: string; previousStatus: ProposalStatus; previousDirection: TypeDirection | null }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
@@ -136,6 +166,8 @@ export interface WorkspaceState {
   version: number
   placementPolicy: PlacementPolicy
   colorPalette: ColorPalette
+  typeDirection: TypeDirection | null
+  typeProposals: TypeDirectionProposal[]
   boardItems: BoardItem[]
   proposals: Proposal[]
   receipts: ActionReceipt[]
@@ -162,6 +194,8 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'set-proposal-isolation'; proposalId: string; isolation: ImageIsolation | null })
   | (CommandBase & { type: 'propose-reference-tags'; targetType: ReferenceTargetType; referenceId: string; suggestion: Omit<TagSuggestion, 'status'> })
   | (CommandBase & { type: 'review-reference-tags'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; decision: 'approve' | 'reject' })
+  | (CommandBase & { type: 'propose-type-direction'; proposal: Omit<TypeDirectionProposal, 'status'> })
+  | (CommandBase & { type: 'review-type-direction'; proposalId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
@@ -181,6 +215,9 @@ export type CommandErrorCode =
   | 'INVALID_TAGS'
   | 'TAG_SUGGESTION_NOT_FOUND'
   | 'TAG_SUGGESTION_NOT_PENDING'
+  | 'TYPE_DIRECTION_NOT_FOUND'
+  | 'TYPE_DIRECTION_NOT_PENDING'
+  | 'INVALID_TYPE_DIRECTION'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'

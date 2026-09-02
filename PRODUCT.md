@@ -61,6 +61,7 @@ The product's defining interaction is the visible transition from agent proposal
 - Approve or reject proposals, create visual territories, place approved items, lock items, and undo agent actions.
 - Extract, compare, edit, and place color palettes. Deterministic image analysis supplies actual color values; agent interpretation assigns creative roles.
 - Search freely embeddable typefaces, create editable specimens, compare directions, and propose pairings.
+- Search Fontsource as the primary free catalog, optionally enrich results with Google Fonts metadata, and expose both operations through `search_typefaces` and `propose_type_direction` WebMCP tools.
 - Optionally include commercial typefaces as clearly labeled reference-only results. Never embed or download an unlicensed commercial font. A designer-supplied licensed font may become editable later.
 - Analyze visual directions, identify gaps, and export a campaign-direction brief.
 

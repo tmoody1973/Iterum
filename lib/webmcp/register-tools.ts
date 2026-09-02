@@ -1,7 +1,7 @@
 import type { WebMCPTool } from '../../types/webmcp'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
-import type { Proposal, WorkspaceCommand, WorkspaceState } from '../domain/types'
+import type { Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
 import { isolateImageBackground } from '../image/isolate-background'
 import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
@@ -10,6 +10,18 @@ const requiredMutation = ['campaignId', 'boardId', 'expectedBoardVersion', 'idem
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const hasExactKeys = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every((key) => allowed.includes(key))
 const finitePoint = (value: unknown): value is { x: number; y: number } => isObject(value) && hasExactKeys(value, ['x', 'y']) && Number.isFinite(value.x) && Number.isFinite(value.y)
+const typefaceKeys = ['id', 'family', 'category', 'source', 'sourceLabel', 'license', 'referenceOnly', 'weights', 'styles', 'cssUrl', 'referenceUrl']
+
+function parsedTypeface(value: unknown): TypefaceCandidate | null {
+  if (!isObject(value) || !hasExactKeys(value, typefaceKeys) || typeof value.id !== 'string' || !value.id || typeof value.family !== 'string' || !value.family || !['serif', 'sans-serif', 'display', 'handwriting', 'monospace'].includes(String(value.category)) || !['fontsource', 'google-fonts', 'commercial-reference'].includes(String(value.source)) || typeof value.sourceLabel !== 'string' || !value.sourceLabel || typeof value.license !== 'string' || !value.license || typeof value.referenceOnly !== 'boolean' || !Array.isArray(value.weights) || !value.weights.length || !value.weights.every((weight) => Number.isInteger(weight) && Number(weight) >= 100 && Number(weight) <= 900) || !Array.isArray(value.styles) || !value.styles.length || !value.styles.every((style) => ['normal', 'italic'].includes(String(style))) || (value.cssUrl !== undefined && !isPublicHttpUrl(value.cssUrl)) || (value.referenceUrl !== undefined && !isPublicHttpUrl(value.referenceUrl)) || (value.source === 'commercial-reference' && !value.referenceOnly)) return null
+  return value as unknown as TypefaceCandidate
+}
+
+function parsedTypeDirection(value: unknown): Omit<TypeDirection, 'id'> & { id: string } | null {
+  if (!isObject(value) || !hasExactKeys(value, ['id', 'headline', 'body', 'specimenText', 'rationale']) || typeof value.id !== 'string' || !value.id || typeof value.specimenText !== 'string' || !value.specimenText.trim() || value.specimenText.length > 180 || typeof value.rationale !== 'string' || !value.rationale.trim() || value.rationale.length > 320) return null
+  const headline = parsedTypeface(value.headline); const body = parsedTypeface(value.body)
+  return headline && body ? { id: value.id, headline, body, specimenText: value.specimenText.trim(), rationale: value.rationale.trim() } : null
+}
 
 function invalid(state: WorkspaceState, message: string) { return failure(state, 'VALIDATION_ERROR', message) }
 
@@ -41,6 +53,7 @@ const cropProperties = { type: 'object', properties: { x: { type: 'number', mini
 const proposalProperties = {
   id: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, imageUrl: { type: 'string' }, sourceUrl: { type: 'string', minLength: 1 }, attribution: { type: 'string', minLength: 1 }, rightsStatus: { type: 'string', enum: ['cleared', 'reference-only', 'uncertain'] }, rationale: { type: 'string', minLength: 1 }, intendedTerritory: { type: 'string', minLength: 1 }, crop: cropProperties, captureProvider: { type: 'string', enum: ['microlink', 'pexels', 'manual', 'web-clipper'] }, directPlacement: { type: 'boolean' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
 }
+const typefaceProperties = { id: { type: 'string', minLength: 1 }, family: { type: 'string', minLength: 1 }, category: { type: 'string', enum: ['serif', 'sans-serif', 'display', 'handwriting', 'monospace'] }, source: { type: 'string', enum: ['fontsource', 'google-fonts', 'commercial-reference'] }, sourceLabel: { type: 'string', minLength: 1 }, license: { type: 'string', minLength: 1 }, referenceOnly: { type: 'boolean' }, weights: { type: 'array', items: { type: 'integer', minimum: 100, maximum: 900 }, minItems: 1 }, styles: { type: 'array', items: { type: 'string', enum: ['normal', 'italic'] }, minItems: 1 }, cssUrl: { type: 'string' }, referenceUrl: { type: 'string' } }
 const mutationProperties = { campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1 } }
 const harmonyModes = ['monochrome', 'monochrome-dark', 'monochrome-light', 'analogic', 'complement', 'analogic-complement', 'triad', 'quad'] as const
 const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value)
@@ -49,7 +62,7 @@ const validContext = (state: WorkspaceState, input: unknown) => isObject(input) 
 
 async function responseJson(response: Response) {
   const payload = await response.json().catch(() => null) as { error?: string } | null
-  if (!response.ok) throw new Error(payload?.error ?? 'The palette provider is unavailable.')
+  if (!response.ok) throw new Error(payload?.error ?? 'The provider is unavailable.')
   return payload
 }
 
@@ -59,7 +72,7 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
     },
     {
       name: 'search_reference_library', title: 'Search the reference library', description: 'Search current board references and pending proposals by title, source, territory, provider, approved tags, or pending tag suggestions without making changes.',
@@ -100,6 +113,17 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
         if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'query', 'count']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.query !== 'string' || input.query.trim().length < 2 || input.query.length > 120 || (input.count !== undefined && (!Number.isInteger(input.count) || (input.count as number) < 1 || (input.count as number) > 12))) return invalid(state, 'Provide the open campaign, a 2–120 character query, and an optional result count from 1–12.')
         try { const payload = await responseJson(await fetch(`/api/references/search?q=${encodeURIComponent(input.query)}&count=${input.count ?? 8}`)); return success(state, payload, `Searched Pexels for “${input.query}”.`) }
         catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Pexels search is unavailable.', true) }
+      },
+    },
+    {
+      name: 'search_typefaces', title: 'Search embeddable typefaces', description: 'Search open-source typefaces through Fontsource and optional Google Fonts metadata. Commercial results appear only when requested and are always reference-only.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, query: { type: 'string', maxLength: 120 }, category: { type: 'string', enum: ['all', 'serif', 'sans-serif', 'display', 'handwriting', 'monospace'] }, includeCommercial: { type: 'boolean' }, count: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'query', 'category', 'includeCommercial', 'count']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || (input.query !== undefined && (typeof input.query !== 'string' || input.query.length > 120)) || (input.category !== undefined && !['all', 'serif', 'sans-serif', 'display', 'handwriting', 'monospace'].includes(String(input.category))) || (input.includeCommercial !== undefined && typeof input.includeCommercial !== 'boolean') || (input.count !== undefined && (!Number.isInteger(input.count) || Number(input.count) < 1 || Number(input.count) > 12))) return invalid(state, 'Search accepts an optional query, classification, commercial-reference toggle, and result count from 1–12.')
+        const params = new URLSearchParams({ q: typeof input.query === 'string' ? input.query : '', category: typeof input.category === 'string' ? input.category : 'all', includeCommercial: String(input.includeCommercial === true), count: String(input.count ?? 8) })
+        try { const payload = await responseJson(await fetch(`/api/typefaces/search?${params}`)); return success(state, payload, `Searched typefaces for “${input.query || 'all families'}”.`) }
+        catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Typeface search is unavailable.', true) }
       },
     },
     {
@@ -178,6 +202,11 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       name: 'propose_reference_tags', title: 'Propose reference tags', description: 'Suggest searchable tags for a current board reference or pending proposal. Suggestions remain pending until the designer approves or rejects them in the Library.',
       inputSchema: { type: 'object', properties: { ...mutationProperties, targetType: { type: 'string', enum: ['proposal', 'board-item'] }, referenceId: { type: 'string', minLength: 1 }, suggestionId: { type: 'string', minLength: 1 }, tags: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 32 }, minItems: 1, maxItems: 8 }, rationale: { type: 'string', minLength: 1, maxLength: 240 } }, required: [...requiredMutation, 'targetType', 'referenceId', 'suggestionId', 'tags', 'rationale'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
       execute: (input) => { const state = runtime.getSnapshot(); const checked = mutationInput(state, input); if ('response' in checked) return checked.response; if (!hasExactKeys(checked.value, [...requiredMutation, 'targetType', 'referenceId', 'suggestionId', 'tags', 'rationale']) || !['proposal', 'board-item'].includes(String(checked.value.targetType)) || typeof checked.value.referenceId !== 'string' || !checked.value.referenceId || typeof checked.value.suggestionId !== 'string' || !checked.value.suggestionId || !isTagList(checked.value.tags) || typeof checked.value.rationale !== 'string' || !checked.value.rationale.trim() || checked.value.rationale.length > 240) return invalid(state, 'Provide a current reference, a unique suggestion ID, 1–8 short tags, and a concise rationale.'); return execute(runtime, { type: 'propose-reference-tags', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', targetType: checked.value.targetType as 'proposal' | 'board-item', referenceId: checked.value.referenceId, suggestion: { id: checked.value.suggestionId, tags: checked.value.tags, rationale: checked.value.rationale } }) },
+    },
+    {
+      name: 'propose_type_direction', title: 'Propose a type direction', description: 'Send a sourced headline and body pairing to type review. The agent cannot approve the pairing or embed commercial reference-only faces.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, direction: { type: 'object', properties: { id: { type: 'string', minLength: 1 }, headline: { type: 'object', properties: typefaceProperties, required: ['id', 'family', 'category', 'source', 'sourceLabel', 'license', 'referenceOnly', 'weights', 'styles'], additionalProperties: false }, body: { type: 'object', properties: typefaceProperties, required: ['id', 'family', 'category', 'source', 'sourceLabel', 'license', 'referenceOnly', 'weights', 'styles'], additionalProperties: false }, specimenText: { type: 'string', minLength: 1, maxLength: 180 }, rationale: { type: 'string', minLength: 1, maxLength: 320 } }, required: ['id', 'headline', 'body', 'specimenText', 'rationale'], additionalProperties: false } }, required: [...requiredMutation, 'direction'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => { const state = runtime.getSnapshot(); const checked = mutationInput(state, input); if ('response' in checked) return checked.response; if (!hasExactKeys(checked.value, [...requiredMutation, 'direction'])) return invalid(state, 'direction is the only additional field.'); const direction = parsedTypeDirection(checked.value.direction); if (!direction) return invalid(state, 'Provide strict sourced headline and body candidates, specimen text, and a concise rationale.'); return execute(runtime, { type: 'propose-type-direction', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: direction }) },
     },
     {
       name: 'propose_reference', title: 'Propose a sourced reference', description: 'Add a sourced reference to the Review Tray. Direct placement requires the designer policy and is constrained to Agent Additions.',

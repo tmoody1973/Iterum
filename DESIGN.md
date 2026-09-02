@@ -219,6 +219,13 @@ Borders are hairline and tonal. Dashed non-photo-blue outlines identify an uncom
 ### Color Studio
 
 - **Local extraction:** The selected board reference is sampled in the browser from either its full image or a fixed center crop. The resulting canonical palette records its source, crop, and deterministic extraction algorithm; saving it is a designer action with an Undo receipt.
+
+### Typography Studio
+
+- **Verified catalog:** The Type tool searches Latin-capable open-source families through Fontsource. Google Fonts catalog metadata becomes a secondary source when its server-side key is configured.
+- **Live proof:** Free faces load from provider CSS into compact result specimens and a campaign pairing proof for “The air remembers.” Headline and body roles remain independently assignable.
+- **Commercial boundary:** The commercial toggle adds clearly labeled foundry recommendations as reference-only records. Their files are never requested or embedded; every commercial specimen uses an explicit visual proxy.
+- **Review:** Human and agent pairings use the same versioned type-direction command. The Review Tray exposes sources, license posture, rationale, Reject, Approve, and Undo. Only approved free-font directions alter the campaign proof.
 - **Systematic variations:** A chosen local swatch may be named and expanded into a bounded scheme through The Color API. These swatches remain suggestions until the designer explicitly pins one.
 - **Experimental harmonies:** Colormind suggestions are visibly marked experimental and may be constrained by one or two local swatches. They are reference material only and never write to the board or campaign palette automatically.
 - **Tool boundary:** WebMCP exposes extraction and both suggestion paths as read-only tools. It never has authority to save, pin, or replace colors.

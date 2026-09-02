@@ -14,6 +14,8 @@ import type {
   ProposalStatus,
   ReferenceTargetType,
   TagSuggestion,
+  TypeDirection,
+  TypefaceCandidate,
   UndoEffect,
   WorkspaceCommand,
   WorkspaceState,
@@ -96,6 +98,22 @@ function validTags(tags: string[]) {
   return normalized.length >= 1 && normalized.length <= 8 && normalized.every((tag) => TAG.test(tag))
 }
 
+const TYPEFACE_SOURCES = ['fontsource', 'google-fonts', 'commercial-reference']
+const TYPEFACE_CATEGORIES = ['serif', 'sans-serif', 'display', 'handwriting', 'monospace']
+function validTypeface(value: TypefaceCandidate) {
+  return Boolean(value.id.trim() && value.family.trim() && value.sourceLabel.trim() && value.license.trim())
+    && TYPEFACE_SOURCES.includes(value.source) && TYPEFACE_CATEGORIES.includes(value.category)
+    && Array.isArray(value.weights) && value.weights.length > 0 && value.weights.every((weight) => Number.isInteger(weight) && weight >= 100 && weight <= 900)
+    && Array.isArray(value.styles) && value.styles.length > 0 && value.styles.every((style) => ['normal', 'italic'].includes(style))
+    && (value.source !== 'commercial-reference' || value.referenceOnly)
+    && (value.cssUrl === undefined || /^https:\/\//.test(value.cssUrl))
+}
+
+function validTypeDirection(value: TypeDirection) {
+  return Boolean(value.id.trim() && value.specimenText.trim() && value.specimenText.length <= 180 && value.rationale.trim() && value.rationale.length <= 320)
+    && validTypeface(value.headline) && validTypeface(value.body)
+}
+
 function withProposalStatus(state: WorkspaceState, proposalId: string, status: ProposalStatus): WorkspaceState {
   return { ...state, proposals: state.proposals.map((proposal) => proposal.id === proposalId ? { ...proposal, status } : proposal) }
 }
@@ -131,6 +149,10 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       return updateReference(state, effect.targetType, effect.referenceId, (reference) => ({ ...reference, tagSuggestions: (reference.tagSuggestions ?? []).filter((suggestion) => suggestion.id !== effect.suggestionId) }))
     case 'tag-decision':
       return updateReference(state, effect.targetType, effect.referenceId, (reference) => ({ ...reference, tags: effect.previousTags, tagSuggestions: (reference.tagSuggestions ?? []).map((suggestion) => suggestion.id === effect.suggestionId ? { ...suggestion, status: effect.previousStatus } : suggestion) }))
+    case 'type-direction-proposal':
+      return { ...state, typeProposals: state.typeProposals.filter((proposal) => proposal.id !== effect.proposalId) }
+    case 'type-direction-decision':
+      return { ...state, typeDirection: effect.previousDirection, typeProposals: state.typeProposals.map((proposal) => proposal.id === effect.proposalId ? { ...proposal, status: effect.previousStatus } : proposal) }
     case 'move':
       return {
         ...state,
@@ -272,6 +294,30 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         updateReference(state, command.targetType, reference.id, (item) => ({ ...item, tags: nextTags, tagSuggestions: (item.tagSuggestions ?? []).map((entry) => entry.id === suggestion.id ? { ...entry, status: command.decision === 'approve' ? 'approved' : 'rejected' } : entry) })), command,
         `${command.decision === 'approve' ? 'Approved' : 'Rejected'} tag suggestion for ${reference.title}.`,
         { type: 'tag-decision', targetType: command.targetType, referenceId: reference.id, suggestionId: suggestion.id, previousStatus: suggestion.status, previousTags },
+      )
+    }
+    case 'propose-type-direction': {
+      if (!validTypeDirection(command.proposal)) return failure(state, 'INVALID_TYPE_DIRECTION', 'Type directions require valid headline and body faces, specimen copy, and a rationale.')
+      if (state.typeProposals.some((proposal) => proposal.id === command.proposal.id)) return failure(state, 'INVALID_TYPE_DIRECTION', 'This type direction already exists.')
+      const proposal = { ...command.proposal, specimenText: command.proposal.specimenText.trim(), rationale: command.proposal.rationale.trim(), status: 'pending' as const }
+      return success(
+        { ...state, typeProposals: [proposal, ...state.typeProposals] }, command,
+        `Added ${proposal.headline.family} + ${proposal.body.family} to type review.`,
+        { type: 'type-direction-proposal', proposalId: proposal.id },
+      )
+    }
+    case 'review-type-direction': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can approve or reject a type direction.')
+      const proposal = state.typeProposals.find((item) => item.id === command.proposalId)
+      if (!proposal) return failure(state, 'TYPE_DIRECTION_NOT_FOUND', 'The type direction no longer exists.')
+      if (proposal.status !== 'pending') return failure(state, 'TYPE_DIRECTION_NOT_PENDING', 'Only pending type directions can be reviewed.')
+      const nextDirection: TypeDirection | null = command.decision === 'approve'
+        ? { id: proposal.id, headline: proposal.headline, body: proposal.body, specimenText: proposal.specimenText, rationale: proposal.rationale }
+        : state.typeDirection
+      return success(
+        { ...state, typeDirection: nextDirection, typeProposals: state.typeProposals.map((item) => item.id === proposal.id ? { ...item, status: command.decision === 'approve' ? 'approved' : 'rejected' } : item) }, command,
+        `${command.decision === 'approve' ? 'Approved' : 'Rejected'} ${proposal.headline.family} + ${proposal.body.family}.`,
+        { type: 'type-direction-decision', proposalId: proposal.id, previousStatus: proposal.status, previousDirection: state.typeDirection },
       )
     }
     case 'move-board-item': {

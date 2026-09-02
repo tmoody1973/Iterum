@@ -74,6 +74,36 @@ test('extracts and saves a deterministic local color palette from a reference cr
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/extracted 6 canonical colors/i)
 })
 
+test('builds a sourced type pairing and keeps approval with the designer', async ({ page }) => {
+  await page.route('**/api/typefaces/search**', async (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ query: 'fraunces', category: 'all', includeCommercial: false, googleFontsConfigured: false, results: [
+      { id: 'fraunces', family: 'Fraunces', category: 'serif', source: 'fontsource', sourceLabel: 'Fontsource', license: 'Open-source via Fontsource', referenceOnly: false, weights: [400, 700], styles: ['normal'] },
+      { id: 'instrument-sans', family: 'Instrument Sans', category: 'sans-serif', source: 'fontsource', sourceLabel: 'Fontsource', license: 'Open-source via Fontsource', referenceOnly: false, weights: [400, 600], styles: ['normal'] },
+    ] }),
+  }))
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await page.getByRole('main', { name: 'Working mechanical' }).getByRole('button', { name: 'Type', exact: true }).click()
+  const studio = page.getByRole('region', { name: 'Typography studio' })
+  await expect(studio).toBeVisible()
+  await studio.getByRole('button', { name: 'Search type' }).click()
+  const fraunces = studio.locator('article').filter({ hasText: 'Fraunces' })
+  const instrument = studio.locator('article').filter({ hasText: 'Instrument Sans' })
+  await fraunces.getByRole('button', { name: 'Headline' }).click()
+  await instrument.getByRole('button', { name: 'Body' }).click()
+  await expect(studio.getByRole('region', { name: 'Type direction comparison' })).toContainText('The air remembers.')
+  await studio.getByRole('button', { name: 'Send type direction to review' }).click()
+
+  const typeProposal = page.getByRole('article', { name: 'Type direction: Fraunces and Instrument Sans' })
+  await expect(typeProposal).toBeVisible()
+  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+  await typeProposal.getByRole('button', { name: 'Approve type direction' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/approved fraunces \+ instrument sans/i)
+  await expect(page.getByRole('main', { name: 'Working mechanical' }).getByRole('heading', { name: /the air re-/i })).toHaveCSS('font-family', /Fraunces/i)
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(typeProposal).toBeVisible()
+})
+
 test('captures a URL, preserves a designer crop, and sends it to review', async ({ page }) => {
   await page.route('**/api/references/capture**', async (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Mineral glass study', description: 'Wet glass, hard shadow, and mineral bloom.', imageUrl: '/assets/ref-wet-concrete.webp', sourceUrl: 'https://example.com/mineral-glass', attribution: 'Example studio', rightsStatus: 'uncertain', provider: 'microlink', previewKind: 'screenshot', crop: { x: 0, y: 0, width: 100, height: 100 } }),

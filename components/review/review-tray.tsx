@@ -11,6 +11,7 @@ import { ProposalCard } from './proposal-card'
 import { ActionReceipt } from './action-receipt'
 import { ReferenceCapturePanel } from './reference-capture-panel'
 import { ReferenceLibrary } from './reference-library'
+import { TypeDirectionCard } from '../typography/type-direction-card'
 
 function proposalCommand(runtime: WorkspaceRuntime, snapshot: WorkspaceState, proposal: Proposal, type: 'approve-proposal' | 'reject-proposal', position?: Point) {
   return type === 'approve-proposal'
@@ -27,6 +28,7 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
   const [isolatingId, setIsolatingId] = useState<string | null>(null)
   const [isolationMessage, setIsolationMessage] = useState('')
   const pending = snapshot.proposals.filter((proposal) => proposal.status === 'pending')
+  const pendingType = snapshot.typeProposals.filter((proposal) => proposal.status === 'pending')
   const policy = snapshot.placementPolicy
   const togglePolicy = () => runtime.dispatch({ type: 'set-placement-policy', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', placementPolicy: { allowAgentDirectPlacement: !policy.allowAgentDirectPlacement, directPlacementTerritory: 'Agent Additions' } })
   const isolateProposal = async (proposal: Proposal) => {
@@ -51,13 +53,13 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
     return () => media.removeEventListener('change', sync)
   }, [])
   return <aside className="review-tray" id="review-tray" aria-label="Review tray">
-    <div className="review-heading"><h2>Review tray</h2><span>{pending.length} pending</span><button className="drawer-close" type="button" onClick={onClose}>Board preview</button></div>
+    <div className="review-heading"><h2>Review tray</h2><span>{pending.length + pendingType.length} pending</span><button className="drawer-close" type="button" onClick={onClose}>Board preview</button></div>
     <div className="review-tabs" role="tablist" aria-label="Proposal galley views"><button role="tab" aria-selected={activeRightTab === 'review'} onClick={() => setActiveRightTab('review')}>Review</button><button role="tab" aria-selected={activeRightTab === 'capture'} onClick={() => setActiveRightTab('capture')}>Capture</button><button role="tab" aria-selected={activeRightTab === 'library'} onClick={() => setActiveRightTab('library')}>Library</button><button role="tab" aria-selected={activeRightTab === 'activity'} onClick={() => setActiveRightTab('activity')}>Activity</button></div>
     {webClipMessage && <section className="web-clip-notice" aria-label="Web clip status" aria-live="polite"><Scissors aria-hidden="true" /><p><strong>Browser clipper</strong>{webClipMessage}</p><button type="button" aria-label="Dismiss web clip status" onClick={() => setWebClipMessage(null)}><X aria-hidden="true" /></button></section>}
     {activeRightTab === 'review' ? <>
       <label className="placement-policy"><input type="checkbox" checked={policy.allowAgentDirectPlacement} onChange={togglePolicy} /><span><strong>Allow agent direct placement</strong><small>Restricted to Agent Additions territory.</small></span></label>
       {isolationMessage && <p className="isolation-status" aria-live="polite">{isolationMessage}</p>}
-      {pending.length ? <div className="proposal-list">{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposalPlacement} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposalPlacement)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} onIsolate={() => isolateProposal(proposal)} onRestore={() => restoreProposal(proposal)} isIsolating={isolatingId === proposal.id} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
+      {pending.length || pendingType.length ? <div className="proposal-list">{pendingType.map((proposal) => <TypeDirectionCard key={proposal.id} proposal={proposal} onApprove={() => runtime.dispatch({ type: 'review-type-direction', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, decision: 'approve' })} onReject={() => runtime.dispatch({ type: 'review-type-direction', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, decision: 'reject' })} />)}{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposalPlacement} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposalPlacement)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} onIsolate={() => isolateProposal(proposal)} onRestore={() => restoreProposal(proposal)} isIsolating={isolatingId === proposal.id} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
     </> : activeRightTab === 'capture' ? <ReferenceCapturePanel snapshot={snapshot} runtime={runtime} onProposed={() => setActiveRightTab('review')} /> : activeRightTab === 'library' ? <ReferenceLibrary snapshot={snapshot} runtime={runtime} /> : <div className="activity-log">{snapshot.receipts.length ? snapshot.receipts.map((receipt) => <p key={receipt.id}><strong>V{String(receipt.version).padStart(2, '0')}</strong> {receipt.summary}</p>) : <p className="activity-empty">No agent activity has changed this mechanical.</p>}</div>}
     {isPhone && <div className="mobile-action-receipt"><ActionReceipt receipt={snapshot.receipts[0]} runtime={runtime} /></div>}
     <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references stay in review unless you explicitly grant direct placement.</p></section>
