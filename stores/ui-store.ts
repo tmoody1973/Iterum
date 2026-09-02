@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 
-export type RightTab = 'review' | 'capture' | 'activity'
+export type RightTab = 'review' | 'capture' | 'library' | 'activity'
 export type ActiveTool = 'select' | 'crop' | 'color' | 'type' | 'annotate'
 export type WebMcpStatus = 'preview' | 'ready' | 'error'
 

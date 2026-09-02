@@ -18,12 +18,12 @@ export function createDemoWorkspaceState(): WorkspaceState {
       ],
     },
     boardItems: [
-      { id: 'reference-concrete', title: 'Wet concrete / sodium reflection', kind: 'reference', imageUrl: '/assets/ref-wet-concrete.webp', territory: 'Material tension', position: { x: 56, y: 62 }, width: 276, height: 356, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },
-      { id: 'reference-resin-iris', title: 'Crushed iris in resin', kind: 'reference', imageUrl: '/assets/ref-resin-iris.webp', territory: 'Floral artifact', position: { x: 388, y: 92 }, width: 300, height: 352, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },
-      { id: 'reference-type-study', title: 'Asymmetrical type study', kind: 'reference', imageUrl: '/assets/ref-type-study.webp', territory: 'Type pressure', position: { x: 736, y: 64 }, width: 252, height: 350, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },
+      { id: 'reference-concrete', title: 'Wet concrete / sodium reflection', kind: 'reference', imageUrl: '/assets/ref-wet-concrete.webp', territory: 'Material tension', position: { x: 56, y: 62 }, width: 276, height: 356, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared', tags: ['wet surface', 'amber light', 'industrial'], tagSuggestions: [] },
+      { id: 'reference-resin-iris', title: 'Crushed iris in resin', kind: 'reference', imageUrl: '/assets/ref-resin-iris.webp', territory: 'Floral artifact', position: { x: 388, y: 92 }, width: 300, height: 352, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared', tags: ['botanical', 'resin', 'violet'], tagSuggestions: [] },
+      { id: 'reference-type-study', title: 'Asymmetrical type study', kind: 'reference', imageUrl: '/assets/ref-type-study.webp', territory: 'Type pressure', position: { x: 736, y: 64 }, width: 252, height: 350, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared', tags: ['condensed type', 'asymmetry', 'editorial'], tagSuggestions: [] },
     ],
     proposals: [
-      { id: 'proposal-resin', title: 'Resin iris / violet fracture', imageUrl: '/assets/ref-resin-iris.webp', sourceUrl: 'https://iterum.demo/references/resin-iris', attribution: 'Iterum synthetic study', rightsStatus: 'cleared', rationale: 'Connects the floral note to a sharp, manufactured surface.', intendedTerritory: 'Floral artifact', status: 'pending' },
+      { id: 'proposal-resin', title: 'Resin iris / violet fracture', imageUrl: '/assets/ref-resin-iris.webp', sourceUrl: 'https://iterum.demo/references/resin-iris', attribution: 'Iterum synthetic study', rightsStatus: 'cleared', rationale: 'Connects the floral note to a sharp, manufactured surface.', intendedTerritory: 'Floral artifact', tags: ['botanical'], tagSuggestions: [{ id: 'tag-suggestion-resin', tags: ['violet fracture', 'encapsulation', 'tactile floral'], rationale: 'Links the crushed iris subject to manufactured material tension.', status: 'pending' }], status: 'pending' },
     ],
     receipts: [],
     processedCommands: [],

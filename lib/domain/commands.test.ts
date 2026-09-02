@@ -171,6 +171,27 @@ describe('applyWorkspaceCommand', () => {
     if (undone.ok) expect(undone.state.proposals[0].isolation).toBeUndefined()
   })
 
+  it('keeps agent tag suggestions pending until a designer approves and can undo the decision', () => {
+    const initial = createDemoWorkspaceState()
+    const suggested = applyWorkspaceCommand(initial, { type: 'propose-reference-tags', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-tags', actor: 'agent', targetType: 'board-item', referenceId: 'reference-concrete', suggestion: { id: 'tag-concrete', tags: ['Monolithic', 'Surface Patina'], rationale: 'Material and finish descriptors.' } })
+    expect(suggested.ok).toBe(true)
+    if (!suggested.ok) return
+    expect(suggested.state.boardItems[0].tags).not.toContain('monolithic')
+    expect(suggested.state.boardItems[0].tagSuggestions?.[0]).toMatchObject({ tags: ['monolithic', 'surface patina'], status: 'pending' })
+    const blocked = applyWorkspaceCommand(suggested.state, { type: 'review-reference-tags', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: suggested.state.version, idempotencyKey: 'agent-approve-tags', actor: 'agent', targetType: 'board-item', referenceId: 'reference-concrete', suggestionId: 'tag-concrete', decision: 'approve' })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const approved = applyWorkspaceCommand(suggested.state, { type: 'review-reference-tags', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: suggested.state.version, idempotencyKey: 'designer-approve-tags', actor: 'designer', targetType: 'board-item', referenceId: 'reference-concrete', suggestionId: 'tag-concrete', decision: 'approve' })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.state.boardItems[0].tags).toEqual(expect.arrayContaining(['monolithic', 'surface patina']))
+    const undone = applyWorkspaceCommand(approved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: approved.state.version, idempotencyKey: 'undo-tag-decision', actor: 'designer', receiptId: approved.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) {
+      expect(undone.state.boardItems[0].tags).not.toContain('monolithic')
+      expect(undone.state.boardItems[0].tagSuggestions?.[0].status).toBe('pending')
+    }
+  })
+
   it('rejects crop metadata that leaves the source image bounds', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, { type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'invalid-crop', actor: 'designer', proposal: { id: 'bad-crop', title: 'Bad crop', sourceUrl: 'https://example.com', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Invalid.', intendedTerritory: 'Material tension', crop: { x: 80, y: 0, width: 30, height: 100 }, captureProvider: 'manual' } })

@@ -14,16 +14,16 @@ afterEach(() => { delete document.modelContext })
 describe('registerIterumTools', () => {
   it('falls back without a browser API', async () => expect(await registerIterumTools(runtime())).toBeNull())
 
-  it('registers twelve strict tools sequentially and returns versioned errors and receipts', async () => {
+  it('registers fourteen strict tools sequentially and returns versioned errors and receipts', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown; inputSchema: Record<string, unknown>; annotations?: { untrustedContentHint?: boolean } }> = []
     const signals: AbortSignal[] = []
     document.modelContext = { registerTool: vi.fn(async (tool, options) => { registered.push(tool); signals.push(options?.signal!); return undefined }) }
     const work = runtime()
     const result = await registerIterumTools(work)
-    expect(result?.count).toBe(12)
-    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'capture_url_reference', 'search_reference_images', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
+    expect(result?.count).toBe(14)
+    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_reference_tags', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
     expect(registered.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true)
-    expect(signals).toHaveLength(12)
+    expect(signals).toHaveLength(14)
     expect(signals.every((signal) => signal === result?.controller.signal)).toBe(true)
     expect(registered.every((tool) => tool.annotations?.untrustedContentHint === true)).toBe(true)
     const approve = registered.find((tool) => tool.name === 'approve_reference')!
@@ -62,6 +62,9 @@ describe('registerIterumTools', () => {
     const capturedProposal = registered.find((tool) => tool.name === 'propose_captured_reference')!
     const invalidCrop = await capturedProposal.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'bad-crop', reference: { id: 'captured', title: 'Captured', sourceUrl: 'https://example.com/reference', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Capture test', intendedTerritory: 'Material tension', captureProvider: 'microlink', crop: { x: 90, y: 0, width: 20, height: 100 } } }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(invalidCrop.error?.code).toBe('VALIDATION_ERROR')
+    const tagProposal = registered.find((tool) => tool.name === 'propose_reference_tags')!
+    const invalidTags = await tagProposal.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'bad-tags', targetType: 'proposal', referenceId: 'proposal-resin', suggestionId: 'bad', tags: [], rationale: 'Empty tags.' }, { signal: new AbortController().signal }) as { error?: { code: string } }
+    expect(invalidTags.error?.code).toBe('VALIDATION_ERROR')
     const extract = registered.find((tool) => tool.name === 'extract_reference_palette')!
     const malformedExtraction = await extract.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', referenceId: 'reference-iris', crop: 'diagonal' }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(malformedExtraction.error?.code).toBe('VALIDATION_ERROR')
@@ -86,7 +89,7 @@ describe('registerIterumTools', () => {
     const work = runtime()
     function Harness() { useWebMcpTools(work); return null }
     const mounted = render(createElement(Harness))
-    await vi.waitFor(() => expect(signals).toHaveLength(12))
+    await vi.waitFor(() => expect(signals).toHaveLength(14))
     mounted.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })

@@ -102,6 +102,21 @@ test('isolates a proposal locally and restores the original with a versioned act
   await expect(proposal.getByRole('button', { name: 'Isolate subject' })).toBeVisible()
 })
 
+test('searches the reference library and lets the designer approve agent tags', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Library' }).click()
+  await expect(page.getByText('4 of 4', { exact: true })).toBeVisible()
+  await page.getByLabel('Search library').fill('industrial')
+  await expect(page.getByText('1 of 4', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Wet concrete / sodium reflection' })).toBeVisible()
+  await page.getByLabel('Search library').fill('')
+  const suggestion = page.getByRole('region', { name: 'Tag suggestion for Resin iris / violet fracture' })
+  await suggestion.getByRole('button', { name: 'Approve tags' }).click()
+  await expect(page.getByLabel('Approved tags for Resin iris / violet fracture')).toContainText('violet fracture')
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/approved tag suggestion/i)
+})
+
 test('phone defaults to review, restores drawer focus, and keeps approval reversible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

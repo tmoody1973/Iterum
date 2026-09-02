@@ -12,6 +12,8 @@ import type {
   Point,
   Proposal,
   ProposalStatus,
+  ReferenceTargetType,
+  TagSuggestion,
   UndoEffect,
   WorkspaceCommand,
   WorkspaceState,
@@ -20,6 +22,7 @@ import type {
 const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
 const HEX = /^#[0-9A-F]{6}$/i
+const TAG = /^[\p{L}\p{N}][\p{L}\p{N}\s&+./-]{0,31}$/u
 const validCrop = (crop: CropRect) => [crop.x, crop.y, crop.width, crop.height].every(Number.isFinite)
   && crop.x >= 0 && crop.y >= 0 && crop.width > 0 && crop.height > 0
   && crop.x + crop.width <= 100 && crop.y + crop.height <= 100
@@ -67,8 +70,30 @@ function placementForProposal(proposal: Proposal, id: string, position: Point): 
     sourceUrl: proposal.sourceUrl, attribution: proposal.attribution, rightsStatus: proposal.rightsStatus,
     sourceProposalId: proposal.id, crop: proposal.crop, captureProvider: proposal.captureProvider,
     isolation: proposal.isolation, originalImageUrl: proposal.isolation ? proposal.imageUrl : undefined,
+    tags: proposal.tags ?? [], tagSuggestions: [],
     territory: proposal.intendedTerritory, position, width: 224, height: 286, locked: false,
   }
+}
+
+type TaggableReference = Proposal | BoardItem
+
+function findReference(state: WorkspaceState, targetType: ReferenceTargetType, referenceId: string): TaggableReference | undefined {
+  return targetType === 'proposal' ? state.proposals.find((item) => item.id === referenceId) : state.boardItems.find((item) => item.id === referenceId)
+}
+
+function updateReference(state: WorkspaceState, targetType: ReferenceTargetType, referenceId: string, update: (reference: TaggableReference) => TaggableReference): WorkspaceState {
+  return targetType === 'proposal'
+    ? { ...state, proposals: state.proposals.map((item) => item.id === referenceId ? update(item) as Proposal : item) }
+    : { ...state, boardItems: state.boardItems.map((item) => item.id === referenceId ? update(item) as BoardItem : item) }
+}
+
+function normalizedTags(tags: string[]) {
+  return [...new Set(tags.map((tag) => tag.trim().toLocaleLowerCase()).filter(Boolean))]
+}
+
+function validTags(tags: string[]) {
+  const normalized = normalizedTags(tags)
+  return normalized.length >= 1 && normalized.length <= 8 && normalized.every((tag) => TAG.test(tag))
 }
 
 function withProposalStatus(state: WorkspaceState, proposalId: string, status: ProposalStatus): WorkspaceState {
@@ -102,6 +127,10 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       return { ...state, colorPalette: effect.previous }
     case 'proposal-isolation':
       return { ...state, proposals: state.proposals.map((proposal) => proposal.id === effect.proposalId ? { ...proposal, isolation: effect.previous } : proposal) }
+    case 'tag-suggestion':
+      return updateReference(state, effect.targetType, effect.referenceId, (reference) => ({ ...reference, tagSuggestions: (reference.tagSuggestions ?? []).filter((suggestion) => suggestion.id !== effect.suggestionId) }))
+    case 'tag-decision':
+      return updateReference(state, effect.targetType, effect.referenceId, (reference) => ({ ...reference, tags: effect.previousTags, tagSuggestions: (reference.tagSuggestions ?? []).map((suggestion) => suggestion.id === effect.suggestionId ? { ...suggestion, status: effect.previousStatus } : suggestion) }))
     case 'move':
       return {
         ...state,
@@ -216,6 +245,33 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         { ...state, proposals: state.proposals.map((item) => item.id === proposal.id ? { ...item, isolation } : item) }, command,
         isolation ? `Isolated ${proposal.title} from its background locally.` : `Restored the original image for ${proposal.title}.`,
         { type: 'proposal-isolation', proposalId: proposal.id, previous: proposal.isolation },
+      )
+    }
+    case 'propose-reference-tags': {
+      const reference = findReference(state, command.targetType, command.referenceId)
+      if (!reference) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The reference no longer exists.')
+      if (!validTags(command.suggestion.tags) || !command.suggestion.id || !command.suggestion.rationale.trim()) return failure(state, 'INVALID_TAGS', 'Tag suggestions require 1–8 short tags and a rationale.')
+      if ((reference.tagSuggestions ?? []).some((suggestion) => suggestion.id === command.suggestion.id)) return failure(state, 'INVALID_TAGS', 'This tag suggestion already exists.')
+      const suggestion: TagSuggestion = { ...command.suggestion, tags: normalizedTags(command.suggestion.tags), rationale: command.suggestion.rationale.trim(), status: 'pending' }
+      return success(
+        updateReference(state, command.targetType, reference.id, (item) => ({ ...item, tagSuggestions: [suggestion, ...(item.tagSuggestions ?? [])] })), command,
+        `Proposed ${suggestion.tags.length} tags for ${reference.title}.`,
+        { type: 'tag-suggestion', targetType: command.targetType, referenceId: reference.id, suggestionId: suggestion.id },
+      )
+    }
+    case 'review-reference-tags': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can approve or reject tag suggestions.')
+      const reference = findReference(state, command.targetType, command.referenceId)
+      if (!reference) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'The reference no longer exists.')
+      const suggestion = (reference.tagSuggestions ?? []).find((item) => item.id === command.suggestionId)
+      if (!suggestion) return failure(state, 'TAG_SUGGESTION_NOT_FOUND', 'The tag suggestion no longer exists.')
+      if (suggestion.status !== 'pending') return failure(state, 'TAG_SUGGESTION_NOT_PENDING', 'Only pending tag suggestions can be reviewed.')
+      const previousTags = reference.tags ?? []
+      const nextTags = command.decision === 'approve' ? normalizedTags([...previousTags, ...suggestion.tags]) : previousTags
+      return success(
+        updateReference(state, command.targetType, reference.id, (item) => ({ ...item, tags: nextTags, tagSuggestions: (item.tagSuggestions ?? []).map((entry) => entry.id === suggestion.id ? { ...entry, status: command.decision === 'approve' ? 'approved' : 'rejected' } : entry) })), command,
+        `${command.decision === 'approve' ? 'Approved' : 'Rejected'} tag suggestion for ${reference.title}.`,
+        { type: 'tag-decision', targetType: command.targetType, referenceId: reference.id, suggestionId: suggestion.id, previousStatus: suggestion.status, previousTags },
       )
     }
     case 'move-board-item': {

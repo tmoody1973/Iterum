@@ -3,6 +3,15 @@ export type Actor = 'designer' | 'agent' | 'system'
 export type Point = { x: number; y: number }
 export type CropRect = { x: number; y: number; width: number; height: number }
 export type CaptureProvider = 'microlink' | 'pexels' | 'manual'
+export type ReferenceTargetType = 'proposal' | 'board-item'
+export type TagSuggestionStatus = 'pending' | 'approved' | 'rejected'
+
+export interface TagSuggestion {
+  id: string
+  tags: string[]
+  rationale: string
+  status: TagSuggestionStatus
+}
 
 export interface ImageIsolation {
   sourceImageUrl: string
@@ -35,6 +44,8 @@ export interface BoardItem {
   captureProvider?: CaptureProvider
   isolation?: ImageIsolation
   originalImageUrl?: string
+  tags?: string[]
+  tagSuggestions?: TagSuggestion[]
   territory: string
   position: Point
   width: number
@@ -57,6 +68,8 @@ export interface Proposal {
   crop?: CropRect
   captureProvider?: CaptureProvider
   isolation?: ImageIsolation
+  tags?: string[]
+  tagSuggestions?: TagSuggestion[]
   status: ProposalStatus
 }
 
@@ -96,6 +109,8 @@ export type UndoEffect =
   | { type: 'placement-policy'; previous: PlacementPolicy }
   | { type: 'color-palette'; previous: ColorPalette }
   | { type: 'proposal-isolation'; proposalId: string; previous?: ImageIsolation }
+  | { type: 'tag-suggestion'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string }
+  | { type: 'tag-decision'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; previousStatus: TagSuggestionStatus; previousTags: string[] }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
@@ -145,6 +160,8 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'set-placement-policy'; placementPolicy: PlacementPolicy })
   | (CommandBase & { type: 'set-color-palette'; colorPalette: ColorPalette })
   | (CommandBase & { type: 'set-proposal-isolation'; proposalId: string; isolation: ImageIsolation | null })
+  | (CommandBase & { type: 'propose-reference-tags'; targetType: ReferenceTargetType; referenceId: string; suggestion: Omit<TagSuggestion, 'status'> })
+  | (CommandBase & { type: 'review-reference-tags'; targetType: ReferenceTargetType; referenceId: string; suggestionId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
@@ -161,6 +178,9 @@ export type CommandErrorCode =
   | 'INVALID_PLACEMENT_POLICY'
   | 'INVALID_COLOR_PALETTE'
   | 'INVALID_REFERENCE'
+  | 'INVALID_TAGS'
+  | 'TAG_SUGGESTION_NOT_FOUND'
+  | 'TAG_SUGGESTION_NOT_PENDING'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'
