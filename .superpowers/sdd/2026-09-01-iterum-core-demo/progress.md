@@ -72,4 +72,8 @@ Task 6: complete — commits a9b4776, ab49c01, and 77339ab; focused review/WebMC
 
 ## Task 7
 
-Task 7: review fix round 1 — mobile receipt/Undo parity, drawer-boundary scrolling, viewport-change review-first state, expanded-state/focus restoration, and browser-failure assertions addressed. Existing production screenshots and the one-time detector result were preserved; final checks pending commit.
+Task 7: review fix round 1 — mobile receipt/Undo parity, drawer-boundary scrolling, viewport-change review-first state, expanded-state/focus restoration, and browser-failure assertions addressed in `eea495c`; scoped review closed 7 findings with 0 open and 0 new.
+
+Task 7: Impeccable finish fix round 1 — visible in-bounds proposal preview, wax-down placement, reduced-motion equivalent, matching coordinate receipt, and reversible responsive proof addressed in `1ed3571`; final evidence committed in `05a15db`.
+
+Task 7: complete — Impeccable disposition `SHIP`; typecheck, 26 unit tests, 5 Playwright E2E tests, production build, design JSON validation, and raster provenance scan passed (`5 rasters, 0 missing`). Post-ship documentation generated as `DESIGN.md` and `.impeccable/design.json`.

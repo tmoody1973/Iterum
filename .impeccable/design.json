@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-02T00:09:46Z",
+  "title": "Design System: Iterum",
+  "extensions": {
+    "colorMeta": {
+      "wheat-paper": {
+        "role": "neutral",
+        "displayName": "Wheat Paper",
+        "tonalRamp": ["oklch(18% 0.018 75)", "oklch(29% 0.018 75)", "oklch(40% 0.018 75)", "oklch(51% 0.018 75)", "oklch(62% 0.018 75)", "oklch(73% 0.018 75)", "oklch(84% 0.018 75)", "oklch(95% 0.018 75)"]
+      },
+      "board-stock": {
+        "role": "neutral",
+        "displayName": "Board Stock",
+        "tonalRamp": ["oklch(18% 0.026 72)", "oklch(29% 0.026 72)", "oklch(40% 0.026 72)", "oklch(51% 0.026 72)", "oklch(62% 0.026 72)", "oklch(73% 0.026 72)", "oklch(84% 0.026 72)", "oklch(95% 0.026 72)"]
+      },
+      "carbon-ink": {
+        "role": "neutral",
+        "displayName": "Carbon Ink",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(37% 0 0)", "oklch(48% 0 0)", "oklch(59% 0 0)", "oklch(70% 0 0)", "oklch(82% 0 0)", "oklch(95% 0 0)"]
+      },
+      "non-photo-blue": {
+        "role": "primary",
+        "displayName": "Non-photo Blue",
+        "tonalRamp": ["oklch(18% 0.09 255)", "oklch(29% 0.09 255)", "oklch(40% 0.09 255)", "oklch(51% 0.09 255)", "oklch(62% 0.09 255)", "oklch(73% 0.09 255)", "oklch(84% 0.09 255)", "oklch(95% 0.09 255)"]
+      },
+      "approval-green": {
+        "role": "secondary",
+        "displayName": "Approval Green",
+        "tonalRamp": ["oklch(18% 0.1 145)", "oklch(29% 0.1 145)", "oklch(40% 0.1 145)", "oklch(51% 0.1 145)", "oklch(62% 0.1 145)", "oklch(73% 0.1 145)", "oklch(84% 0.1 145)", "oklch(95% 0.1 145)"]
+      },
+      "review-ruby": {
+        "role": "secondary",
+        "displayName": "Review Ruby",
+        "tonalRamp": ["oklch(18% 0.07 30)", "oklch(29% 0.07 30)", "oklch(40% 0.07 30)", "oklch(51% 0.07 30)", "oklch(62% 0.07 30)", "oklch(73% 0.07 30)", "oklch(84% 0.07 30)", "oklch(95% 0.07 30)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Campaign Display", "purpose": "Extreme-scale poster-proof headlines only." },
+      "title": { "displayName": "Ledger Title", "purpose": "Campaign names and major proofing headings." },
+      "body": { "displayName": "Brief Body", "purpose": "Short campaign language and readable explanatory copy." },
+      "label": { "displayName": "Production Label", "purpose": "Tools, provenance, dimensions, rights, state, and coordinates." }
+    },
+    "shadows": [
+      { "name": "mounted-proof", "value": "0 8px 16px rgba(45,35,22,0.28)", "purpose": "Shallow physical lift for the mounted poster proof." },
+      { "name": "placement", "value": "0 7px 15px rgba(45,35,22,0.28)", "purpose": "Separates a destination preview or newly waxed reference from the board." },
+      { "name": "receipt", "value": "0 5px 13px rgba(0,0,0,0.35)", "purpose": "Keeps the action receipt legible above the working desk." },
+      { "name": "drawer", "value": "0 12px 28px rgba(0,0,0,0.42)", "purpose": "Marks a brief or review ledger docked over a narrower desktop." }
+    ],
+    "motion": [
+      { "name": "wax-down", "value": "540ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Reveals an approved placement from offset and clipped to fully committed." },
+      { "name": "wax-down-reduced", "value": "none", "purpose": "Under prefers-reduced-motion, placed state and receipt update without animated movement." }
+    ],
+    "breakpoints": [
+      { "name": "drawer", "value": "1050px" },
+      { "name": "phone-review", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Mechanical Tool Button",
+      "kind": "button",
+      "refersTo": "tool-button",
+      "description": "Full-height carbon-chrome tool with square geometry and explicit active state.",
+      "html": "<button class=\"ds-tool-button\" type=\"button\" aria-pressed=\"true\"><span class=\"ds-tool-glyph\" aria-hidden=\"true\"></span><span>Select</span></button>",
+      "css": ".ds-tool-button{height:52px;display:flex;align-items:center;gap:7px;padding:0 13px;border:0;border-left:1px solid #262626;background:#292929;color:#fff;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}.ds-tool-button:hover{background:#333;color:#fff}.ds-tool-button:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}.ds-tool-glyph{width:15px;height:15px;border:1px solid currentColor;display:inline-block;transform:rotate(45deg)}"
+    },
+    {
+      "name": "Campaign Job Ticket",
+      "kind": "card",
+      "refersTo": "job-ticket",
+      "description": "Ruled wheat-paper ledger for locked campaign facts and production notes.",
+      "html": "<section class=\"ds-job-ticket\"><header><span>Campaign job ticket</span><b>#SB-2024-017</b></header><h2>Static Bloom</h2><p>The air remembers.</p><dl><dt>Campaign</dt><dd>Static Bloom</dd><dt>Status</dt><dd>In review</dd></dl><footer>Ticket locked</footer></section>",
+      "css": ".ds-job-ticket{width:260px;background-color:var(--wheat,#d0c7ba);color:var(--ink,#171717);border:1px solid rgba(23,23,23,.45);font:400 10px/1.4 'IBM Plex Mono',monospace}.ds-job-ticket header{display:flex;justify-content:space-between;padding:12px 20px;border-bottom:1px solid rgba(23,23,23,.45);font-size:9px;text-transform:uppercase}.ds-job-ticket header b{color:var(--ruby,#a05040)}.ds-job-ticket h2{margin:20px 20px 0;font:500 30px/1 'Barlow Condensed',sans-serif}.ds-job-ticket p{margin:6px 20px 20px}.ds-job-ticket dl{display:grid;grid-template-columns:1fr 1fr;margin:0;border-top:1px solid rgba(23,23,23,.32);text-transform:uppercase}.ds-job-ticket dt,.ds-job-ticket dd{margin:0;padding:7px 12px;border-bottom:1px solid rgba(23,23,23,.32)}.ds-job-ticket dd{font-weight:500}.ds-job-ticket footer{padding:12px 20px;text-transform:uppercase;font-size:9px}.ds-job-ticket:focus-within{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Review Tabs",
+      "kind": "nav",
+      "description": "Compact Review and Activity switcher for the dark proposal galley.",
+      "html": "<div class=\"ds-review-tabs\" role=\"tablist\" aria-label=\"Proposal galley views\"><button role=\"tab\" aria-selected=\"true\">Review</button><button role=\"tab\" aria-selected=\"false\">Activity</button></div>",
+      "css": ".ds-review-tabs{display:flex;gap:18px;padding:9px 16px;border-bottom:1px solid #383836;background:#1c1c1b}.ds-review-tabs button{padding:3px 0;border:0;background:transparent;color:#aaa69e;font:500 9px 'IBM Plex Mono',monospace;text-transform:uppercase;cursor:pointer}.ds-review-tabs button[aria-selected='true']{color:#fff;border-bottom:1px solid var(--blue,#4779b8)}.ds-review-tabs button:hover{color:#fff}.ds-review-tabs button:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Approve Button",
+      "kind": "button",
+      "refersTo": "button-approve",
+      "description": "Outlined construction-blue action that becomes green only on hover or valid commit intent.",
+      "html": "<button class=\"ds-approve\" type=\"button\">Approve to Floral artifact</button>",
+      "css": ".ds-approve{padding:8px 12px;border:1px solid var(--blue,#4779b8);border-radius:0;background:transparent;color:#8cb4ed;font:500 9px 'IBM Plex Mono',monospace;text-transform:uppercase;cursor:pointer}.ds-approve:hover{border-color:var(--green,#217a3a);background:var(--green,#217a3a);color:#fff}.ds-approve:active{transform:translateY(1px)}.ds-approve:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Placement Policy",
+      "kind": "input",
+      "description": "Explicit permission boundary for agent direct placement into Agent Additions.",
+      "html": "<label class=\"ds-placement-policy\"><input type=\"checkbox\"><span><strong>Allow agent direct placement</strong><small>Restricted to Agent Additions territory.</small></span></label>",
+      "css": ".ds-placement-policy{display:flex;gap:8px;align-items:flex-start;padding:10px 0;border-top:1px solid #474641;border-bottom:1px solid #474641;background:#1c1c1b;color:#dcd7cd;cursor:pointer}.ds-placement-policy input{margin:2px 0 0;accent-color:var(--green,#217a3a)}.ds-placement-policy strong,.ds-placement-policy small{display:block}.ds-placement-policy strong{font:500 9px 'IBM Plex Mono',monospace;text-transform:uppercase}.ds-placement-policy small{margin-top:4px;color:#aaa69e;font:400 8px/1.35 'IBM Plex Mono',monospace}.ds-placement-policy:hover strong{color:#fff}.ds-placement-policy input:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Board Outline Item",
+      "kind": "custom",
+      "description": "Keyboard-operable DOM mirror of a spatial canvas item with geometry, provenance, and lock status.",
+      "html": "<button class=\"ds-outline-item\" type=\"button\" aria-pressed=\"true\"><strong>Wet concrete</strong><span>X 56 · Y 62 · 276 × 356px</span><span>Source: Iterum synthetic reference</span><span>Locked · inspect/select only</span></button>",
+      "css": ".ds-outline-item{width:280px;padding:8px 10px;border:1px solid rgba(23,23,23,.5);border-radius:0;background:var(--blue,#4779b8);color:#fff;text-align:left;font:400 8px/1.35 'IBM Plex Mono',monospace;cursor:pointer}.ds-outline-item strong,.ds-outline-item span{display:block}.ds-outline-item strong{text-transform:uppercase}.ds-outline-item span{margin-top:2px}.ds-outline-item:hover{background:#396da9}.ds-outline-item:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Placement Projection",
+      "kind": "custom",
+      "refersTo": "placement-projection",
+      "description": "Dashed destination preview that becomes a solid, coordinate-labeled waxed placement after approval.",
+      "html": "<figure class=\"ds-placement-projection\"><div>Resin iris preview</div><figcaption>Destination preview · X 466 · Y 120</figcaption></figure>",
+      "css": ".ds-placement-projection{width:224px;height:286px;margin:0;padding:8px;border:2px dashed var(--blue,#4779b8);border-radius:0;background:#dfd8cc;color:var(--blue,#4779b8);box-shadow:0 7px 15px rgba(45,35,22,.28);font:400 9px 'IBM Plex Mono',monospace;opacity:.78}.ds-placement-projection div{height:247px;display:grid;place-items:center;background:var(--board,#b3a590);text-transform:uppercase}.ds-placement-projection figcaption{margin-top:6px;font-size:8px;line-height:1.2;text-transform:uppercase}.ds-placement-projection:hover{opacity:1}.ds-placement-projection:focus-within{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    },
+    {
+      "name": "Action Receipt",
+      "kind": "custom",
+      "refersTo": "action-receipt",
+      "description": "Readable mutation record with actor, version, exact coordinates, and compensating Undo.",
+      "html": "<section class=\"ds-action-receipt\" aria-label=\"Latest action receipt\"><span class=\"ds-receipt-check\" aria-hidden=\"true\">✓</span><p><strong>Approve proposal</strong> · Approved Resin iris onto Floral artifact.<small>Actor: designer · Board V04 · Placed at X 466 · Y 120</small></p><button type=\"button\">Undo</button></section>",
+      "css": ".ds-action-receipt{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--ink,#171717);color:#e8e4da;box-shadow:0 5px 13px rgba(0,0,0,.35);font:400 11px 'IBM Plex Mono',monospace}.ds-action-receipt p{margin:0}.ds-action-receipt small{display:block;margin-top:5px;color:#aaa69e}.ds-receipt-check{display:grid;place-items:center;width:34px;height:34px;flex:0 0 auto;border:2px solid var(--green,#217a3a);border-radius:50%;color:#85ca95;font-size:22px}.ds-action-receipt button{margin-left:auto;padding:8px 20px;border:1px solid #696965;border-radius:0;background:transparent;color:#eee;font:500 10px 'IBM Plex Mono',monospace;text-transform:uppercase;cursor:pointer}.ds-action-receipt button:hover{border-color:var(--blue,#4779b8);color:#fff}.ds-action-receipt button:active{transform:translateY(1px)}.ds-action-receipt button:focus-visible{outline:2px solid var(--blue,#4779b8);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Paste-up Proofing Desk / Working Mechanical",
+    "overview": "Iterum is a contemporary production interface built from the visual logic of pre-digital editorial paste-up and repro-camera work. Carbon application chrome frames a tactile wheat desk; measured rules, registration targets, locked specimens, filename labels, tape, and proofing marks make the workspace feel exact and materially present. It is editorially dense, never decorative nostalgia.\n\nThe designer remains visibly in control. Agent research arrives as sourced material in a dark review galley, previews a precise destination on the shared mechanical, and moves onto the board only after approval or an explicit direct-placement grant. Every accepted change resolves into coordinates, a board version, an actor, and a reversible receipt.",
+    "keyCharacteristics": [
+      "Three-zone production topology with the Working Mechanical always dominant.",
+      "Warm paper and mounted-specimen materiality inside carbon-black application chrome.",
+      "Condensed grotesk headlines paired with terse monospaced production metadata.",
+      "Non-photo blue for construction and selection, ruby for review notation, and green reserved for valid approval.",
+      "Semantic controls and ledgers around a spatial Konva projection of canonical board state.",
+      "Square, ruled, tactile, and precise rather than card-based, glossy, or conversational."
+    ],
+    "rules": [
+      { "name": "The Production-Ink Rule", "body": "Every chromatic accent must name a production state: construction, review, or approval.", "section": "colors" },
+      { "name": "The Green Means Commit Rule", "body": "Approval green appears only after a valid action or in an explicit ready state; it never decorates idle controls.", "section": "colors" },
+      { "name": "The Artifact/Instrument Rule", "body": "Barlow Condensed belongs to campaign artifacts and decisive headings; IBM Plex Mono belongs to the instrument panel, provenance, state, and coordinates.", "section": "typography" },
+      { "name": "The Center-Owns-the-Desk Rule", "body": "Any editing layout preserves the Working Mechanical as the largest continuous region; supporting ledgers dock or draw over it before the mechanical is compressed.", "section": "layout" },
+      { "name": "The Review-First Phone Rule", "body": "Phone layouts prioritize the decision boundary and its receipt, not canvas manipulation.", "section": "layout" },
+      { "name": "The Mounted-Paper Rule", "body": "Use elevation only when a surface is physically mounted, docked over the desk, or recording a completed action.", "section": "elevation" },
+      { "name": "The Square-By-Default Rule", "body": "If an element is not a registration, status, or confirmation instrument, begin with a square silhouette.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do preserve the Campaign Job Ticket / Working Mechanical / Review Tray topology wherever desktop space permits.",
+      "Do show source, attribution, rights evidence, rationale, destination, and placement policy before asking for approval.",
+      "Do make approval spatially legible as destination preview → explicit approval → waxed placement → coordinate receipt.",
+      "Do pair every important Konva action with a keyboard-operable semantic DOM path.",
+      "Do retain text or shape cues for focus, lock, selection, approval, rejection, and errors; color is supporting evidence.",
+      "Do use the generated paper grain, tape, and locked-reference assets with their provenance sidecars intact.",
+      "Do keep the three synthetic references visibly locked and identify their source class in both canvas and outline."
+    ],
+    "donts": [
+      "Don't turn Iterum into an infinite whiteboard with a chatbot beside it, a bento dashboard, or a generic SaaS card grid.",
+      "Don't use glossy gradients, glass effects, pill-heavy softness, AI sci-fi motifs, fake metrics, or ornamental “creative” clutter.",
+      "Don't use tape, texture, rotation, or handwritten marks as scrapbook decoration; every material cue must explain attachment, alignment, or review.",
+      "Don't allow agent-found material to bypass Review unless the designer has granted direct placement, and then only into Agent Additions.",
+      "Don't imply that uncertain rights are cleared or omit source-page evidence from a proposal.",
+      "Don't animate wax-down under reduced-motion preferences or hide a state change when its motion is removed.",
+      "Don't promise full phone canvas editing; keep the phone honest, review-first, and receipt-complete."
+    ]
+  }
+}
