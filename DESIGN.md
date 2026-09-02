@@ -206,6 +206,13 @@ Borders are hairline and tonal. Dashed non-photo-blue outlines identify an uncom
 - **Accessible mirror:** A DOM Board Outline lists every item’s title, coordinates, size, source, and lock state. Arrow keys move editable items by 10px; explicit controls resize them by 20px. Locked items remain selectable and inspectable but cannot be resized or deleted.
 - **Canonical state:** Konva nodes are projections. Rejected or version-conflicted changes restore the latest runtime geometry rather than preserving stale canvas state.
 
+### Color Studio
+
+- **Local extraction:** The selected board reference is sampled in the browser from either its full image or a fixed center crop. The resulting canonical palette records its source, crop, and deterministic extraction algorithm; saving it is a designer action with an Undo receipt.
+- **Systematic variations:** A chosen local swatch may be named and expanded into a bounded scheme through The Color API. These swatches remain suggestions until the designer explicitly pins one.
+- **Experimental harmonies:** Colormind suggestions are visibly marked experimental and may be constrained by one or two local swatches. They are reference material only and never write to the board or campaign palette automatically.
+- **Tool boundary:** WebMCP exposes extraction and both suggestion paths as read-only tools. It never has authority to save, pin, or replace colors.
+
 ### Approval Preview, Wax-Down, and Action Receipt
 
 - **Preview:** Before commit, a dashed non-photo-blue frame appears at the calculated destination, bounded to at least 24px from the measured viewport edge. The frame names the intended territory and exact X/Y coordinate.

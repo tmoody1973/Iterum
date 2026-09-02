@@ -30,6 +30,25 @@ describe('applyWorkspaceCommand', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'VERSION_CONFLICT' }, state: initial })
   })
 
+  it('records deterministic color extraction as a versioned and undoable designer decision', () => {
+    const initial = createDemoWorkspaceState()
+    const saved = applyWorkspaceCommand(initial, {
+      type: 'set-color-palette', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'save-local-colors', actor: 'designer',
+      colorPalette: {
+        extraction: { referenceId: 'reference-resin-iris', referenceLabel: 'Crushed iris in resin', imageUrl: '/assets/ref-resin-iris.webp', crop: 'center', algorithm: 'iterum-pixel-quantize-v1', colors: [{ hex: '#6E432D', source: 'local-extraction', role: 'extracted' }] },
+        pinned: initial.colorPalette.pinned,
+      },
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    expect(saved.state.colorPalette.extraction?.algorithm).toBe('iterum-pixel-quantize-v1')
+    expect(saved.receipt.undo?.type).toBe('color-palette')
+    const undone = applyWorkspaceCommand(saved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: saved.state.version, idempotencyKey: 'undo-colors', actor: 'designer', receiptId: saved.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) expect(undone.state.colorPalette).toEqual(initial.colorPalette)
+  })
+
   it('protects locked references from movement', () => {
     const initial = createDemoWorkspaceState()
     const locked = initial.boardItems.find((item) => item.locked)

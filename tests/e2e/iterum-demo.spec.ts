@@ -63,6 +63,17 @@ test('shows the safe Preview state without a model context', async ({ page }) =>
   await expect(page.getByText('WebMCP preview', { exact: true })).toBeVisible()
 })
 
+test('extracts and saves a deterministic local color palette from a reference crop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await page.getByRole('banner', { name: 'Iterum' }).getByRole('button', { name: 'Color', exact: true }).click()
+  const studio = page.getByRole('complementary', { name: 'Color studio' })
+  await expect(studio).toBeVisible()
+  await expect(studio.getByRole('button', { name: 'Save canonical extraction' })).toBeEnabled()
+  await studio.getByRole('button', { name: 'Save canonical extraction' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/extracted 6 canonical colors/i)
+})
+
 test('phone defaults to review, restores drawer focus, and keeps approval reversible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

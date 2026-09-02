@@ -48,11 +48,36 @@ export interface PlacementPolicy {
   directPlacementTerritory: string
 }
 
+export type ColorSource = 'local-extraction' | 'the-color-api' | 'colormind'
+export type ColorRole = 'extracted' | 'systematic' | 'experimental'
+
+export interface ColorSwatch {
+  hex: string
+  name?: string
+  source: ColorSource
+  role: ColorRole
+}
+
+export interface ColorExtraction {
+  referenceId: string
+  referenceLabel: string
+  imageUrl: string
+  crop: 'full' | 'center'
+  algorithm: 'iterum-pixel-quantize-v1'
+  colors: ColorSwatch[]
+}
+
+export interface ColorPalette {
+  extraction: ColorExtraction | null
+  pinned: ColorSwatch[]
+}
+
 export type UndoEffect =
   | { type: 'approval'; proposalId: string; previousStatus: ProposalStatus; placedItemId: string }
   | { type: 'rejection'; proposalId: string; previousStatus: ProposalStatus }
   | { type: 'proposal'; proposalId: string; placedItemId?: string }
   | { type: 'placement-policy'; previous: PlacementPolicy }
+  | { type: 'color-palette'; previous: ColorPalette }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
@@ -77,6 +102,7 @@ export interface WorkspaceState {
   campaign: Campaign
   version: number
   placementPolicy: PlacementPolicy
+  colorPalette: ColorPalette
   boardItems: BoardItem[]
   proposals: Proposal[]
   receipts: ActionReceipt[]
@@ -99,6 +125,7 @@ export type WorkspaceCommand =
       proposal: Omit<Proposal, 'status'> & { directPlacement?: boolean; position?: Point }
     })
   | (CommandBase & { type: 'set-placement-policy'; placementPolicy: PlacementPolicy })
+  | (CommandBase & { type: 'set-color-palette'; colorPalette: ColorPalette })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
@@ -113,6 +140,7 @@ export type CommandErrorCode =
   | 'LOCKED_REFERENCE'
   | 'DIRECT_PLACEMENT_NOT_ALLOWED'
   | 'INVALID_PLACEMENT_POLICY'
+  | 'INVALID_COLOR_PALETTE'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'

@@ -14,16 +14,16 @@ afterEach(() => { delete document.modelContext })
 describe('registerIterumTools', () => {
   it('falls back without a browser API', async () => expect(await registerIterumTools(runtime())).toBeNull())
 
-  it('registers five strict tools sequentially and returns versioned errors and receipts', async () => {
+  it('registers eight strict tools sequentially and returns versioned errors and receipts', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown; inputSchema: Record<string, unknown>; annotations?: { untrustedContentHint?: boolean } }> = []
     const signals: AbortSignal[] = []
     document.modelContext = { registerTool: vi.fn(async (tool, options) => { registered.push(tool); signals.push(options?.signal!); return undefined }) }
     const work = runtime()
     const result = await registerIterumTools(work)
-    expect(result?.count).toBe(5)
-    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
+    expect(result?.count).toBe(8)
+    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
     expect(registered.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true)
-    expect(signals).toHaveLength(5)
+    expect(signals).toHaveLength(8)
     expect(signals.every((signal) => signal === result?.controller.signal)).toBe(true)
     expect(registered.every((tool) => tool.annotations?.untrustedContentHint === true)).toBe(true)
     const approve = registered.find((tool) => tool.name === 'approve_reference')!
@@ -53,6 +53,12 @@ describe('registerIterumTools', () => {
     document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
     const work = runtime()
     await registerIterumTools(work)
+    const extract = registered.find((tool) => tool.name === 'extract_reference_palette')!
+    const malformedExtraction = await extract.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', referenceId: 'reference-iris', crop: 'diagonal' }, { signal: new AbortController().signal }) as { error?: { code: string } }
+    expect(malformedExtraction.error?.code).toBe('VALIDATION_ERROR')
+    const scheme = registered.find((tool) => tool.name === 'suggest_color_scheme')!
+    const malformedScheme = await scheme.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', hex: 'blue', mode: 'triad' }, { signal: new AbortController().signal }) as { error?: { code: string } }
+    expect(malformedScheme.error?.code).toBe('VALIDATION_ERROR')
     const propose = registered.find((tool) => tool.name === 'propose_reference')!
     const privateUrl = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'private', proposal: { id: 'private', title: 'Private', sourceUrl: 'http://127.0.0.1/a', attribution: 'x', rightsStatus: 'uncertain', rationale: 'x', intendedTerritory: 'x' } }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(privateUrl.error?.code).toBe('VALIDATION_ERROR')
@@ -71,7 +77,7 @@ describe('registerIterumTools', () => {
     const work = runtime()
     function Harness() { useWebMcpTools(work); return null }
     const mounted = render(createElement(Harness))
-    await vi.waitFor(() => expect(signals).toHaveLength(5))
+    await vi.waitFor(() => expect(signals).toHaveLength(8))
     mounted.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })

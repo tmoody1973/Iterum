@@ -8,6 +8,7 @@ import type { Point, Proposal, WorkspaceState } from '../lib/domain/types'
 import { useUiStore } from '../stores/ui-store'
 import { BottomModeBar } from './bottom-mode-bar'
 import { CampaignJobTicket } from './campaign-job-ticket'
+import { ColorStudio } from './color-studio'
 import { TopToolbar } from './top-toolbar'
 import { BoardOutline } from './mechanical/board-outline'
 import { MechanicalCanvas } from './mechanical/mechanical-canvas-loader'
@@ -58,6 +59,13 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const pendingProposal = snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin' && proposal.status === 'pending')
   const pendingPlacement = proposalPlacementForViewport(canvasSize.width, canvasSize.height)
   const placedProposalItem = snapshot.boardItems.find((item) => item.sourceProposalId === 'proposal-resin')
+  const extractedColors = snapshot.colorPalette.extraction?.colors.map((color) => color.hex) ?? []
+  const pinnedColors = snapshot.colorPalette.pinned.map((color) => color.hex)
+  const campaignColors = extractedColors.length > 0
+    ? extractedColors
+    : pinnedColors.length > 0
+      ? pinnedColors
+      : ['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d']
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -95,6 +103,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
+          {activeTool === 'color' && <ColorStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} />}
           <div className="ruler ruler-top" aria-hidden="true" />
           <section className="pasteboard" aria-label="Static Bloom campaign board">
             <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
@@ -110,7 +119,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
               <p className="poster-footer">ITERUM.COM <span>The air remembers.</span></p>
               <span className="tape tape-bottom" aria-hidden="true" />
             </article>
-            <div className="color-strip" aria-label="Campaign color control strip">{['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d'].map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
+            <div className="color-strip" aria-label="Campaign color control strip">{campaignColors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
             {pendingProposal && <PlacementProjection proposal={pendingProposal} placement={pendingPlacement} />}
             {placedProposalItem && <PlacementProjection proposal={snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin')!} placement={pendingPlacement} item={placedProposalItem} />}
           </section>

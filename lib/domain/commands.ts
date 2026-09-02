@@ -1,6 +1,7 @@
 import type {
   ActionReceipt,
   BoardItem,
+  ColorPalette,
   CommandErrorCode,
   CommandFailure,
   CommandResult,
@@ -16,6 +17,7 @@ import type {
 
 const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
+const HEX = /^#[0-9A-F]{6}$/i
 
 function failure(state: WorkspaceState, code: CommandErrorCode, message: string): CommandFailure {
   return { ok: false, state, error: { code, message } }
@@ -66,6 +68,12 @@ function withProposalStatus(state: WorkspaceState, proposalId: string, status: P
   return { ...state, proposals: state.proposals.map((proposal) => proposal.id === proposalId ? { ...proposal, status } : proposal) }
 }
 
+function isColorPalette(value: ColorPalette): boolean {
+  const validSwatch = (swatch: ColorPalette['pinned'][number]) => HEX.test(swatch.hex)
+  return value.pinned.every(validSwatch)
+    && (!value.extraction || (value.extraction.algorithm === 'iterum-pixel-quantize-v1' && value.extraction.colors.every(validSwatch)))
+}
+
 function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceState {
   switch (effect.type) {
     case 'approval':
@@ -83,6 +91,8 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       }
     case 'placement-policy':
       return { ...state, placementPolicy: effect.previous }
+    case 'color-palette':
+      return { ...state, colorPalette: effect.previous }
     case 'move':
       return {
         ...state,
@@ -172,6 +182,16 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
       return success(
         { ...state, placementPolicy: nextPolicy }, command, 'Updated the board placement policy.',
         { type: 'placement-policy', previous: state.placementPolicy },
+      )
+    }
+    case 'set-color-palette': {
+      if (!isColorPalette(command.colorPalette)) {
+        return failure(state, 'INVALID_COLOR_PALETTE', 'A saved color palette must contain valid hexadecimal swatches.')
+      }
+      return success(
+        { ...state, colorPalette: command.colorPalette }, command,
+        command.colorPalette.extraction ? `Extracted ${command.colorPalette.extraction.colors.length} canonical colors from ${command.colorPalette.extraction.referenceLabel}.` : 'Updated the campaign color palette.',
+        { type: 'color-palette', previous: state.colorPalette },
       )
     }
     case 'move-board-item': {

@@ -1,4 +1,5 @@
 import type { WebMCPTool } from '../../types/webmcp'
+import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
 import type { Proposal, WorkspaceCommand, WorkspaceState } from '../domain/types'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
@@ -52,6 +53,15 @@ const proposalProperties = {
   id: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, imageUrl: { type: 'string' }, sourceUrl: { type: 'string', minLength: 1 }, attribution: { type: 'string', minLength: 1 }, rightsStatus: { type: 'string', enum: ['cleared', 'reference-only', 'uncertain'] }, rationale: { type: 'string', minLength: 1 }, intendedTerritory: { type: 'string', minLength: 1 }, directPlacement: { type: 'boolean' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
 }
 const mutationProperties = { campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1 } }
+const harmonyModes = ['monochrome', 'monochrome-dark', 'monochrome-light', 'analogic', 'complement', 'analogic-complement', 'triad', 'quad'] as const
+const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value)
+const validContext = (state: WorkspaceState, input: unknown) => isObject(input) && hasExactKeys(input, ['campaignId', 'boardId']) && input.campaignId === state.campaign.id && input.boardId === state.campaign.boardId
+
+async function responseJson(response: Response) {
+  const payload = await response.json().catch(() => null) as { error?: string } | null
+  if (!response.ok) throw new Error(payload?.error ?? 'The palette provider is unavailable.')
+  return payload
+}
 
 export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController()): Promise<RegisteredTools | null> {
   if (!document.modelContext) return null
@@ -59,7 +69,47 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) => { const state = runtime.getSnapshot(); if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId'])) return invalid(state, 'campaignId and boardId are the only accepted fields.'); if (input.campaignId !== state.campaign.id || input.boardId !== state.campaign.boardId) return failure(state, 'CAMPAIGN_MISMATCH', 'The requested campaign context is not open.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+    },
+    {
+      name: 'extract_reference_palette', title: 'Extract a reference palette', description: 'Use Iterum’s local deterministic pixel extraction on a current board reference or a centered crop. This does not save or pin any color.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, referenceId: { type: 'string', minLength: 1 }, crop: { type: 'string', enum: ['full', 'center'] } }, required: ['campaignId', 'boardId', 'referenceId', 'crop'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'referenceId', 'crop']) || input.campaignId !== state.campaign.id || input.boardId !== state.campaign.boardId || typeof input.referenceId !== 'string' || !['full', 'center'].includes(String(input.crop))) return invalid(state, 'Provide the open campaign, a board referenceId, and full or center crop.')
+        const reference = state.boardItems.find((item) => item.id === input.referenceId)
+        if (!reference?.imageUrl?.startsWith('/')) return invalid(state, 'Only current Iterum reference images can be locally extracted.')
+        try {
+          const colors = await extractPaletteFromImage(reference.imageUrl, input.crop as 'full' | 'center')
+          return success(state, { referenceId: reference.id, crop: input.crop, algorithm: 'iterum-pixel-quantize-v1', colors: colors.map((hex) => ({ hex, source: 'local-extraction' as const, role: 'extracted' as const })) }, `Locally extracted ${colors.length} colors from ${reference.title}.`)
+        } catch {
+          return failure(state, 'EXTRACTION_UNAVAILABLE', 'Local extraction could not read this reference image.', true)
+        }
+      },
+    },
+    {
+      name: 'suggest_color_scheme', title: 'Suggest a systematic color scheme', description: 'Generate named, systematic color variations from a designer-selected hexadecimal seed through The Color API. Suggestions are not saved or pinned.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, hex: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' }, mode: { type: 'string', enum: [...harmonyModes] } }, required: ['campaignId', 'boardId', 'hex', 'mode'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'hex', 'mode']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || !isHex(input.hex) || !harmonyModes.includes(input.mode as typeof harmonyModes[number])) return invalid(state, 'Provide the open campaign, a hexadecimal seed, and a supported harmony mode.')
+        try {
+          const payload = await responseJson(await fetch(`/api/color/scheme?hex=${encodeURIComponent(input.hex)}&mode=${encodeURIComponent(String(input.mode))}`)) as { colors: unknown }
+          return success(state, payload, `Generated a ${input.mode} systematic scheme from ${input.hex}.`)
+        } catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'The Color API is unavailable.', true) }
+      },
+    },
+    {
+      name: 'suggest_experimental_palette', title: 'Suggest an experimental palette', description: 'Generate an optional Colormind direction from one or two designer-locked swatches. Colormind may adjust input colors; results are never saved or pinned automatically.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, lockedColors: { type: 'array', items: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' }, minItems: 1, maxItems: 2 } }, required: ['campaignId', 'boardId', 'lockedColors'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'lockedColors']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || !Array.isArray(input.lockedColors) || input.lockedColors.length < 1 || input.lockedColors.length > 2 || !input.lockedColors.every(isHex)) return invalid(state, 'Provide the open campaign and one or two hexadecimal locked colors.')
+        try {
+          const payload = await responseJson(await fetch('/api/color/experimental', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locked: input.lockedColors }) })) as { colors: unknown; note?: string }
+          return success(state, payload, 'Generated an experimental Colormind palette direction.')
+        } catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Colormind is unavailable.', true) }
+      },
     },
     {
       name: 'propose_reference', title: 'Propose a sourced reference', description: 'Add a sourced reference to the Review Tray. Direct placement requires the designer policy and is constrained to Agent Additions.',

@@ -10,6 +10,13 @@ export function createDemoWorkspaceState(): WorkspaceState {
     },
     version: 3,
     placementPolicy: { allowAgentDirectPlacement: false, directPlacementTerritory: 'Agent Additions' },
+    colorPalette: {
+      extraction: null,
+      pinned: [
+        { hex: '#4779B8', name: 'Non-photo blue', source: 'local-extraction', role: 'extracted' },
+        { hex: '#A05040', name: 'Review ruby', source: 'local-extraction', role: 'extracted' },
+      ],
+    },
     boardItems: [
       { id: 'reference-concrete', title: 'Wet concrete / sodium reflection', kind: 'reference', imageUrl: '/assets/ref-wet-concrete.webp', territory: 'Material tension', position: { x: 56, y: 62 }, width: 276, height: 356, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },
       { id: 'reference-resin-iris', title: 'Crushed iris in resin', kind: 'reference', imageUrl: '/assets/ref-resin-iris.webp', territory: 'Floral artifact', position: { x: 388, y: 92 }, width: 300, height: 352, locked: true, sourceUrl: 'local-demo', attribution: 'Iterum synthetic reference', rightsStatus: 'cleared' },
