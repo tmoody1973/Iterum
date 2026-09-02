@@ -4,6 +4,14 @@ export type Point = { x: number; y: number }
 export type CropRect = { x: number; y: number; width: number; height: number }
 export type CaptureProvider = 'microlink' | 'pexels' | 'manual'
 
+export interface ImageIsolation {
+  sourceImageUrl: string
+  imageDataUrl: string
+  algorithm: 'iterum-border-matte-v1'
+  sensitivity: number
+  removedRatio: number
+}
+
 export interface Campaign {
   id: string
   boardId: string
@@ -25,6 +33,8 @@ export interface BoardItem {
   sourceProposalId?: string
   crop?: CropRect
   captureProvider?: CaptureProvider
+  isolation?: ImageIsolation
+  originalImageUrl?: string
   territory: string
   position: Point
   width: number
@@ -46,6 +56,7 @@ export interface Proposal {
   intendedTerritory: string
   crop?: CropRect
   captureProvider?: CaptureProvider
+  isolation?: ImageIsolation
   status: ProposalStatus
 }
 
@@ -84,6 +95,7 @@ export type UndoEffect =
   | { type: 'proposal'; proposalId: string; placedItemId?: string }
   | { type: 'placement-policy'; previous: PlacementPolicy }
   | { type: 'color-palette'; previous: ColorPalette }
+  | { type: 'proposal-isolation'; proposalId: string; previous?: ImageIsolation }
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
 
@@ -132,6 +144,7 @@ export type WorkspaceCommand =
     })
   | (CommandBase & { type: 'set-placement-policy'; placementPolicy: PlacementPolicy })
   | (CommandBase & { type: 'set-color-palette'; colorPalette: ColorPalette })
+  | (CommandBase & { type: 'set-proposal-isolation'; proposalId: string; isolation: ImageIsolation | null })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })

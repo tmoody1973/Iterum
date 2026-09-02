@@ -154,6 +154,23 @@ describe('applyWorkspaceCommand', () => {
     if (approved.ok) expect(approved.state.boardItems.at(-1)).toMatchObject({ captureProvider: 'microlink', crop: { x: 15, y: 10, width: 70, height: 80 } })
   })
 
+  it('lets only the designer commit and undo a local isolation derivative', () => {
+    const initial = createDemoWorkspaceState()
+    const isolation = { sourceImageUrl: '/assets/ref-resin-iris.webp', imageDataUrl: 'data:image/png;base64,aXNvbGF0ZWQ=', algorithm: 'iterum-border-matte-v1' as const, sensitivity: 50, removedRatio: 0.42 }
+    const blocked = applyWorkspaceCommand(initial, { type: 'set-proposal-isolation', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'agent-isolation', actor: 'agent', proposalId: 'proposal-resin', isolation })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const saved = applyWorkspaceCommand(initial, { type: 'set-proposal-isolation', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'designer-isolation', actor: 'designer', proposalId: 'proposal-resin', isolation })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    expect(saved.state.proposals[0].isolation).toEqual(isolation)
+    const approved = applyWorkspaceCommand(saved.state, { type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: saved.state.version, idempotencyKey: 'approve-isolated', actor: 'designer', proposalId: 'proposal-resin' })
+    expect(approved.ok).toBe(true)
+    if (approved.ok) expect(approved.state.boardItems.at(-1)).toMatchObject({ imageUrl: isolation.imageDataUrl, originalImageUrl: isolation.sourceImageUrl })
+    const undone = applyWorkspaceCommand(saved.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: saved.state.version, idempotencyKey: 'undo-isolation', actor: 'designer', receiptId: saved.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) expect(undone.state.proposals[0].isolation).toBeUndefined()
+  })
+
   it('rejects crop metadata that leaves the source image bounds', () => {
     const initial = createDemoWorkspaceState()
     const result = applyWorkspaceCommand(initial, { type: 'propose-reference', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'invalid-crop', actor: 'designer', proposal: { id: 'bad-crop', title: 'Bad crop', sourceUrl: 'https://example.com', attribution: 'Example', rightsStatus: 'uncertain', rationale: 'Invalid.', intendedTerritory: 'Material tension', crop: { x: 80, y: 0, width: 30, height: 100 }, captureProvider: 'manual' } })

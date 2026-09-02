@@ -206,6 +206,7 @@ Borders are hairline and tonal. Dashed non-photo-blue outlines identify an uncom
 - **Crop:** Designers set percentage-based X/Y/width/height bounds over the captured preview before sending it to review. The crop, provider, attribution, and rights state travel with the proposal and approved board item.
 - **Licensed search:** Pexels results retain their creator attribution and source page. Missing provider credentials resolve to an explicit configuration notice rather than synthetic results.
 - **Agent boundary:** WebMCP can capture, search, and propose; it cannot approve the reference or silently place it outside the existing direct-placement policy.
+- **Local isolation:** Pending proposals may create an edge-connected transparent PNG derivative entirely in the browser. The checkerboard preview, removed-area percentage, original-image restore, receipt, and Undo keep the derivative visibly reversible; WebMCP can generate a preview but cannot commit it.
 
 ### Working Mechanical
 

@@ -2,6 +2,7 @@ import type { WebMCPTool } from '../../types/webmcp'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
 import type { Proposal, WorkspaceCommand, WorkspaceState } from '../domain/types'
+import { isolateImageBackground } from '../image/isolate-background'
 import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
 
@@ -77,6 +78,20 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
         if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'query', 'count']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.query !== 'string' || input.query.trim().length < 2 || input.query.length > 120 || (input.count !== undefined && (!Number.isInteger(input.count) || (input.count as number) < 1 || (input.count as number) > 12))) return invalid(state, 'Provide the open campaign, a 2–120 character query, and an optional result count from 1–12.')
         try { const payload = await responseJson(await fetch(`/api/references/search?q=${encodeURIComponent(input.query)}&count=${input.count ?? 8}`)); return success(state, payload, `Searched Pexels for “${input.query}”.`) }
         catch (error) { return failure(state, 'PROVIDER_UNAVAILABLE', error instanceof Error ? error.message : 'Pexels search is unavailable.', true) }
+      },
+    },
+    {
+      name: 'isolate_reference_background', title: 'Isolate a reference subject', description: 'Create a local transparent PNG derivative from a current proposal or board reference using edge-connected background matting. This returns a preview and never replaces the canonical image.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, sourceType: { type: 'string', enum: ['proposal', 'board-item'] }, referenceId: { type: 'string', minLength: 1 }, sensitivity: { type: 'integer', minimum: 10, maximum: 90 } }, required: ['campaignId', 'boardId', 'sourceType', 'referenceId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'sourceType', 'referenceId', 'sensitivity']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || !['proposal', 'board-item'].includes(String(input.sourceType)) || typeof input.referenceId !== 'string' || !input.referenceId || (input.sensitivity !== undefined && (!Number.isInteger(input.sensitivity) || (input.sensitivity as number) < 10 || (input.sensitivity as number) > 90))) return invalid(state, 'Provide a current proposal or board-item reference and an optional sensitivity from 10–90.')
+        const source = input.sourceType === 'proposal' ? state.proposals.find((item) => item.id === input.referenceId) : state.boardItems.find((item) => item.id === input.referenceId)
+        if (!source) return invalid(state, 'The selected reference is not in the current workspace.')
+        const imageUrl = source && 'originalImageUrl' in source ? source.originalImageUrl ?? source.imageUrl : source?.imageUrl
+        if (!imageUrl) return invalid(state, 'The selected reference has no readable source image.')
+        try { const isolation = await isolateImageBackground(imageUrl, typeof input.sensitivity === 'number' ? input.sensitivity : 50); return success(state, { referenceId: input.referenceId, ...isolation }, `Created a local background-isolation preview for ${source.title}.`) }
+        catch (error) { return failure(state, 'EXTRACTION_UNAVAILABLE', error instanceof Error ? error.message : 'Local background isolation failed.', true) }
       },
     },
     {

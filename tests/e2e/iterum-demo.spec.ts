@@ -90,6 +90,18 @@ test('captures a URL, preserves a designer crop, and sends it to review', async 
   await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
 })
 
+test('isolates a proposal locally and restores the original with a versioned action', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  const proposal = page.getByRole('article', { name: 'Proposal: Resin iris / violet fracture' })
+  await proposal.getByRole('button', { name: 'Isolate subject' }).click()
+  await expect(proposal.getByRole('button', { name: 'Use original' })).toBeVisible()
+  await expect(proposal.locator('img')).toHaveClass(/is-isolated/)
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/isolated resin iris/i)
+  await proposal.getByRole('button', { name: 'Use original' }).click()
+  await expect(proposal.getByRole('button', { name: 'Isolate subject' })).toBeVisible()
+})
+
 test('phone defaults to review, restores drawer focus, and keeps approval reversible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

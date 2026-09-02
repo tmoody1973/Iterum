@@ -5,6 +5,7 @@ import { LockKeyhole } from 'lucide-react'
 
 import type { WorkspaceRuntime } from '../../lib/domain/workspace-runtime'
 import type { Point, Proposal, WorkspaceState } from '../../lib/domain/types'
+import { isolateImageBackground } from '../../lib/image/isolate-background'
 import { useUiStore } from '../../stores/ui-store'
 import { ProposalCard } from './proposal-card'
 import { ActionReceipt } from './action-receipt'
@@ -20,9 +21,24 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
   const activeRightTab = useUiStore((state) => state.activeRightTab)
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const [isPhone, setIsPhone] = useState(false)
+  const [isolatingId, setIsolatingId] = useState<string | null>(null)
+  const [isolationMessage, setIsolationMessage] = useState('')
   const pending = snapshot.proposals.filter((proposal) => proposal.status === 'pending')
   const policy = snapshot.placementPolicy
   const togglePolicy = () => runtime.dispatch({ type: 'set-placement-policy', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', placementPolicy: { allowAgentDirectPlacement: !policy.allowAgentDirectPlacement, directPlacementTerritory: 'Agent Additions' } })
+  const isolateProposal = async (proposal: Proposal) => {
+    if (!proposal.imageUrl) return
+    setIsolatingId(proposal.id); setIsolationMessage(`Isolating ${proposal.title} locally…`)
+    try {
+      const isolation = await isolateImageBackground(proposal.imageUrl, 50)
+      const result = runtime.dispatch({ type: 'set-proposal-isolation', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, isolation })
+      setIsolationMessage(result.ok ? result.receipt.summary : result.error.message)
+    } catch (error) { setIsolationMessage(error instanceof Error ? error.message : 'Local image isolation failed.') } finally { setIsolatingId(null) }
+  }
+  const restoreProposal = (proposal: Proposal) => {
+    const result = runtime.dispatch({ type: 'set-proposal-isolation', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, isolation: null })
+    setIsolationMessage(result.ok ? result.receipt.summary : result.error.message)
+  }
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
     const media = window.matchMedia('(max-width: 760px)')
@@ -36,7 +52,8 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
     <div className="review-tabs" role="tablist" aria-label="Proposal galley views"><button role="tab" aria-selected={activeRightTab === 'review'} onClick={() => setActiveRightTab('review')}>Review</button><button role="tab" aria-selected={activeRightTab === 'capture'} onClick={() => setActiveRightTab('capture')}>Capture</button><button role="tab" aria-selected={activeRightTab === 'activity'} onClick={() => setActiveRightTab('activity')}>Activity</button></div>
     {activeRightTab === 'review' ? <>
       <label className="placement-policy"><input type="checkbox" checked={policy.allowAgentDirectPlacement} onChange={togglePolicy} /><span><strong>Allow agent direct placement</strong><small>Restricted to Agent Additions territory.</small></span></label>
-      {pending.length ? <div className="proposal-list">{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposal.id === 'proposal-resin' ? proposalPlacement : undefined} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposal.id === 'proposal-resin' ? proposalPlacement : undefined)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
+      {isolationMessage && <p className="isolation-status" aria-live="polite">{isolationMessage}</p>}
+      {pending.length ? <div className="proposal-list">{pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposal.id === 'proposal-resin' ? proposalPlacement : undefined} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposal.id === 'proposal-resin' ? proposalPlacement : undefined)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} onIsolate={() => isolateProposal(proposal)} onRestore={() => restoreProposal(proposal)} isIsolating={isolatingId === proposal.id} />)}</div> : <p className="activity-empty">No pending proposals. Use research to add sourced references; direct additions remain limited to Agent Additions.</p>}
     </> : activeRightTab === 'capture' ? <ReferenceCapturePanel snapshot={snapshot} runtime={runtime} onProposed={() => setActiveRightTab('review')} /> : <div className="activity-log">{snapshot.receipts.length ? snapshot.receipts.map((receipt) => <p key={receipt.id}><strong>V{String(receipt.version).padStart(2, '0')}</strong> {receipt.summary}</p>) : <p className="activity-empty">No agent activity has changed this mechanical.</p>}</div>}
     {isPhone && <div className="mobile-action-receipt"><ActionReceipt receipt={snapshot.receipts[0]} runtime={runtime} /></div>}
     <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references stay in review unless you explicitly grant direct placement.</p></section>

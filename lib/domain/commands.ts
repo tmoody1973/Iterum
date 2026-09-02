@@ -3,6 +3,7 @@ import type {
   BoardItem,
   ColorPalette,
   CropRect,
+  ImageIsolation,
   CommandErrorCode,
   CommandFailure,
   CommandResult,
@@ -62,9 +63,10 @@ function success(
 
 function placementForProposal(proposal: Proposal, id: string, position: Point): BoardItem {
   return {
-    id, title: proposal.title, kind: 'agent-addition', imageUrl: proposal.imageUrl,
+    id, title: proposal.title, kind: 'agent-addition', imageUrl: proposal.isolation?.imageDataUrl ?? proposal.imageUrl,
     sourceUrl: proposal.sourceUrl, attribution: proposal.attribution, rightsStatus: proposal.rightsStatus,
     sourceProposalId: proposal.id, crop: proposal.crop, captureProvider: proposal.captureProvider,
+    isolation: proposal.isolation, originalImageUrl: proposal.isolation ? proposal.imageUrl : undefined,
     territory: proposal.intendedTerritory, position, width: 224, height: 286, locked: false,
   }
 }
@@ -98,6 +100,8 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
       return { ...state, placementPolicy: effect.previous }
     case 'color-palette':
       return { ...state, colorPalette: effect.previous }
+    case 'proposal-isolation':
+      return { ...state, proposals: state.proposals.map((proposal) => proposal.id === effect.proposalId ? { ...proposal, isolation: effect.previous } : proposal) }
     case 'move':
       return {
         ...state,
@@ -198,6 +202,20 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         { ...state, colorPalette: command.colorPalette }, command,
         command.colorPalette.extraction ? `Extracted ${command.colorPalette.extraction.colors.length} canonical colors from ${command.colorPalette.extraction.referenceLabel}.` : 'Updated the campaign color palette.',
         { type: 'color-palette', previous: state.colorPalette },
+      )
+    }
+    case 'set-proposal-isolation': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can commit an isolated image derivative.')
+      const proposal = state.proposals.find((item) => item.id === command.proposalId)
+      if (!proposal) return failure(state, 'PROPOSAL_NOT_FOUND', 'The proposal no longer exists.')
+      if (proposal.status !== 'pending') return failure(state, 'PROPOSAL_NOT_PENDING', 'Only pending proposals can change their image derivative.')
+      if (!proposal.imageUrl) return failure(state, 'INVALID_REFERENCE', 'This proposal has no source image to isolate.')
+      const isolation: ImageIsolation | undefined = command.isolation ?? undefined
+      if (isolation && (isolation.sourceImageUrl !== proposal.imageUrl || isolation.algorithm !== 'iterum-border-matte-v1' || !isolation.imageDataUrl.startsWith('data:image/png;base64,') || !Number.isFinite(isolation.sensitivity) || isolation.sensitivity < 0 || isolation.sensitivity > 100 || !Number.isFinite(isolation.removedRatio) || isolation.removedRatio < 0 || isolation.removedRatio > 1)) return failure(state, 'INVALID_REFERENCE', 'The image isolation derivative is invalid.')
+      return success(
+        { ...state, proposals: state.proposals.map((item) => item.id === proposal.id ? { ...item, isolation } : item) }, command,
+        isolation ? `Isolated ${proposal.title} from its background locally.` : `Restored the original image for ${proposal.title}.`,
+        { type: 'proposal-isolation', proposalId: proposal.id, previous: proposal.isolation },
       )
     }
     case 'move-board-item': {
