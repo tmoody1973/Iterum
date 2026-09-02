@@ -167,3 +167,33 @@
   scrollbar-gutter:stable;
 }
 .agent-note{margin-top:0}
+
+/* The brief is an editable contract; locked state reads like a proof, draft state like a form. */
+.job-ticket{overflow:hidden}
+.brief-fields{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.ticket-title label{display:grid;gap:5px;margin-bottom:10px;color:#554a3d;text-transform:uppercase;font-size:var(--ui-label-size)}
+.ticket-title label:last-child{margin-bottom:0}
+.ticket-title input,.ticket-copy input,.ticket-copy textarea{width:100%;min-height:var(--ui-control-height);padding:7px 8px;border:1px solid #746b5e;border-radius:0;background:#eee8dc;color:var(--ink);font:var(--ui-body-size)/1.45 'IBM Plex Mono',monospace}
+.ticket-copy textarea{resize:vertical}
+.ticket-copy p span{display:block;margin-bottom:3px}
+.version-history p{margin:0 0 5px;font-size:var(--ui-body-size)}
+.version-history small{display:block;color:#6d6356;font-size:var(--ui-label-size);line-height:var(--ui-leading)}
+.ticket-message{margin:0;padding:10px 14px;background:rgba(71,121,184,.14);color:#315f98;font:var(--ui-label-size)/var(--ui-leading) 'IBM Plex Mono',monospace}
+.ticket-footer{gap:8px;background:rgba(208,199,186,.96);position:sticky;bottom:0;z-index:2}
+.ticket-footer button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:32px}
+.ticket-footer button svg{width:13px;height:13px}
+
+/* Creative routes are strategic alternatives, reviewed separately from layout drafts. */
+.creative-route-card{margin:11px;padding:12px;border:1px solid #5c6570;background:#202326;color:#dcd7cd}
+.creative-route-card header,.creative-route-card header span,.creative-route-card footer{display:flex;align-items:center}
+.creative-route-card header{justify-content:space-between;color:#8cb4ed;font:var(--ui-label-size)/1.35 'IBM Plex Mono',monospace;text-transform:uppercase}
+.creative-route-card header span{gap:6px}.creative-route-card header svg{width:14px;height:14px}.creative-route-card header b{color:#aaa69e;font-weight:400}
+.creative-route-card h3{margin:9px 0 5px;font:600 22px/1 'Barlow Condensed',sans-serif;text-transform:uppercase}
+.creative-route-card>p{margin:0 0 10px;color:#bbb7ad;font:var(--ui-body-size)/var(--ui-leading) 'IBM Plex Mono',monospace}
+.route-palette{display:flex;height:18px;margin:0 0 11px;border:1px solid #77736b}.route-palette i{flex:1;border-right:1px solid rgba(0,0,0,.45)}.route-palette i:last-child{border:0}
+.creative-route-card dl{margin:0;font:var(--ui-label-size)/var(--ui-leading) 'IBM Plex Mono',monospace}.creative-route-card dt{float:left;clear:left;width:76px;color:#8e8d87;text-transform:uppercase}.creative-route-card dd{margin:0 0 8px 82px}
+.creative-route-card footer{gap:8px}.creative-route-card footer button{display:flex;align-items:center;justify-content:center;gap:5px;flex:1;min-height:38px;border:1px solid #5b6268;background:transparent;color:#ddd;text-transform:uppercase;font:var(--ui-label-size) 'IBM Plex Mono',monospace;cursor:pointer}.creative-route-card footer button svg{width:12px}.creative-route-card footer .approve{border-color:var(--blue);color:#9cc3f4}.creative-route-card footer .approve:hover{background:var(--green);border-color:var(--green);color:#fff}
+
+/* Keep the desk inside the viewport; each zone owns its own scrolling surface. */
+.workspace{height:100vh;min-height:0;grid-template-rows:52px minmax(0,calc(100vh - 104px)) 52px}
+@media(max-width:760px){.workspace{grid-template-rows:48px minmax(0,calc(100vh - 96px)) 48px}}

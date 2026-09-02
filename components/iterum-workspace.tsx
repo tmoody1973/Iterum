@@ -100,14 +100,14 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
         reviewTriggerRef={reviewTriggerRef}
       />
       <div className="desk-zones">
-        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={closeBrief} />
+        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} runtime={workspaceRuntime} onClose={closeBrief} />
         <main className="working-mechanical" aria-label="Working mechanical">
-          <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
+          <div className="mechanical-meta"><span>Mechanical</span><span>{snapshot.campaign.name.replace(/\s+/g, '_')}_directions_{versionLabel}</span><span>3 routes · single session</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} boardItems={snapshot.boardItems} selectedItem={selectedBoardItem} onToggleSelectedLock={() => { if (selectedBoardItem) workspaceRuntime.dispatch({ type: 'set-board-item-lock', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', itemId: selectedBoardItem.id, locked: !selectedBoardItem.locked }) }} />
           {activeTool === 'color' && <ColorStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} />}
           {activeTool === 'type' && <TypographyStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} onProposed={() => { setActiveTool('select'); setActiveRightTab('review') }} />}
           <div className="ruler ruler-top" aria-hidden="true" />
-          <section className="pasteboard" aria-label="Static Bloom campaign board">
+          <section className="pasteboard" aria-label={`${snapshot.campaign.name} campaign board`}>
             <div className="mechanical-canvas-host" ref={canvasHost} aria-hidden="true">
               {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} proposalPreview={pendingProposal ? { proposal: pendingProposal, position: pendingPlacement } : undefined} layoutPreview={layoutPreview} />}
             </div>

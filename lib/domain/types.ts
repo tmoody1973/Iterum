@@ -57,6 +57,31 @@ export interface Campaign {
   brief: string
   deliverables: string[]
   constraints: string[]
+  briefStatus: 'draft' | 'locked'
+  creativeBrief: CampaignBrief
+}
+
+export interface CampaignBrief {
+  objective: string
+  audience: string
+  proposition: string
+  tone: string[]
+  mandatoryAssets: string[]
+  antiDirections: string[]
+  schedule: string
+}
+
+export interface CreativeRoute {
+  id: string
+  name: string
+  thesis: string
+  territory: string
+  palette: string[]
+  typography: string
+  imageTreatment: string
+  compositionPrinciples: string[]
+  status: ProposalStatus
+  frame: { position: Point; width: number; height: number }
 }
 
 export interface BoardItem {
@@ -182,6 +207,10 @@ export type UndoEffect =
   | { type: 'move'; itemId: string; previousPosition: Point }
   | { type: 'resize'; itemId: string; previousSize: { width: number; height: number } }
   | { type: 'lock'; itemId: string; previousLocked: boolean }
+  | { type: 'campaign-brief'; previousCampaign: Campaign }
+  | { type: 'campaign-brief-lock'; previousStatus: Campaign['briefStatus'] }
+  | { type: 'creative-routes-proposal'; routeIds: string[] }
+  | { type: 'creative-route-decision'; routeId: string; previousStatus: ProposalStatus }
 
 export interface ActionReceipt {
   id: string
@@ -202,6 +231,7 @@ export interface ProcessedCommand {
 
 export interface WorkspaceState {
   campaign: Campaign
+  creativeRoutes: CreativeRoute[]
   version: number
   placementPolicy: PlacementPolicy
   colorPalette: ColorPalette
@@ -241,6 +271,10 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
   | (CommandBase & { type: 'set-board-item-lock'; itemId: string; locked: boolean })
+  | (CommandBase & { type: 'update-campaign-brief'; name: string; line: string; brief: CampaignBrief })
+  | (CommandBase & { type: 'set-campaign-brief-lock'; locked: boolean })
+  | (CommandBase & { type: 'propose-creative-routes'; routes: Array<Omit<CreativeRoute, 'status'>> })
+  | (CommandBase & { type: 'review-creative-route'; routeId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
 
 export type CommandErrorCode =
@@ -264,6 +298,11 @@ export type CommandErrorCode =
   | 'BOARD_LAYOUT_NOT_FOUND'
   | 'BOARD_LAYOUT_NOT_PENDING'
   | 'INVALID_BOARD_LAYOUT'
+  | 'BRIEF_LOCKED'
+  | 'INVALID_CAMPAIGN_BRIEF'
+  | 'CREATIVE_ROUTE_NOT_FOUND'
+  | 'CREATIVE_ROUTE_NOT_PENDING'
+  | 'INVALID_CREATIVE_ROUTES'
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'

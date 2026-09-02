@@ -14,16 +14,16 @@ afterEach(() => { delete document.modelContext })
 describe('registerIterumTools', () => {
   it('falls back without a browser API', async () => expect(await registerIterumTools(runtime())).toBeNull())
 
-  it('registers twenty-eight strict tools sequentially and returns versioned errors and receipts', async () => {
+  it('registers thirty-two strict tools sequentially and returns versioned errors and receipts', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown; inputSchema: Record<string, unknown>; annotations?: { untrustedContentHint?: boolean } }> = []
     const signals: AbortSignal[] = []
     document.modelContext = { registerTool: vi.fn(async (tool, options) => { registered.push(tool); signals.push(options?.signal!); return undefined }) }
     const work = runtime()
     const result = await registerIterumTools(work)
-    expect(result?.count).toBe(28)
-    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'get_board_viewport', 'focus_board_items', 'set_board_viewport', 'reset_board_viewport', 'get_board_items', 'add_board_note', 'propose_board_layout', 'preview_board_layout', 'apply_board_layout', 'group_board_items', 'assign_board_territory', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'search_typefaces', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_web_clip', 'propose_reference_tags', 'propose_type_direction', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
+    expect(result?.count).toBe(32)
+    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'update_campaign_brief', 'request_campaign_brief_lock', 'propose_creative_routes', 'request_creative_route_decision', 'get_board_viewport', 'focus_board_items', 'set_board_viewport', 'reset_board_viewport', 'get_board_items', 'add_board_note', 'propose_board_layout', 'preview_board_layout', 'apply_board_layout', 'group_board_items', 'assign_board_territory', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'search_typefaces', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_web_clip', 'propose_reference_tags', 'propose_type_direction', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
     expect(registered.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true)
-    expect(signals).toHaveLength(28)
+    expect(signals).toHaveLength(32)
     expect(signals.every((signal) => signal === result?.controller.signal)).toBe(true)
     expect(registered.every((tool) => tool.annotations?.untrustedContentHint === true)).toBe(true)
     const approve = registered.find((tool) => tool.name === 'approve_reference')!
@@ -128,6 +128,20 @@ describe('registerIterumTools', () => {
     expect(work.getSnapshot().boardItems).toHaveLength(7)
   })
 
+  it('exposes the brief lock boundary and proposes routes without approving them', async () => {
+    const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
+    document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
+    const work = createWorkspaceRuntime({ ...createDemoWorkspaceState(), creativeRoutes: [] })
+    await registerIterumTools(work)
+    const lockRequest = registered.find((tool) => tool.name === 'request_campaign_brief_lock')!
+    const status = await lockRequest.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom' }, { signal: new AbortController().signal }) as { data: { briefStatus: string; requiresDesignerApproval: boolean } }
+    expect(status.data).toEqual({ briefStatus: 'locked', requiresDesignerApproval: false })
+    const propose = registered.find((tool) => tool.name === 'propose_creative_routes')!
+    const response = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'tool-route', routes: [{ id: 'route-tool', name: 'Signal bloom', thesis: 'A tense route.', territory: 'Signal', palette: ['#171717', '#4779B8'], typography: 'Compressed display.', imageTreatment: 'Hard reflected light.', compositionPrinciples: ['One focal signal'], frame: { position: { x: 20, y: 20 }, width: 300, height: 600 } }] }, { signal: new AbortController().signal }) as { ok: boolean }
+    expect(response.ok).toBe(true)
+    expect(work.getSnapshot().creativeRoutes.at(-1)).toMatchObject({ id: 'route-tool', status: 'pending' })
+  })
+
   it('rejects strict malformed, private, and designer-only tool input without mutation', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
     document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
@@ -175,7 +189,7 @@ describe('registerIterumTools', () => {
     const work = runtime()
     function Harness() { useWebMcpTools(work); return null }
     const mounted = render(createElement(Harness))
-    await vi.waitFor(() => expect(signals).toHaveLength(28))
+    await vi.waitFor(() => expect(signals).toHaveLength(32))
     mounted.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })

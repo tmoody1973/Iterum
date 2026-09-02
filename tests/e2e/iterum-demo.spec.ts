@@ -49,7 +49,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
 
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(page.getByText('7 items', { exact: true })).toBeVisible()
-  await expect(page.getByRole('complementary', { name: 'Review tray' })).toContainText('1 pending')
+  await expect(page.getByRole('complementary', { name: 'Review tray' })).toContainText('4 pending')
   await expect(page.getByRole('button', { name: /approve to floral artifact/i })).toBeVisible()
   await expect(preview).toHaveClass(/is-preview/)
 })
@@ -57,6 +57,23 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
 test('shows the safe Preview state without a model context', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('WebMCP preview', { exact: true })).toBeVisible()
+})
+
+test('locks the campaign brief and keeps creative-route approval with the designer', async ({ page }) => {
+  await page.goto('/')
+  const brief = page.getByRole('complementary', { name: 'Campaign job ticket' })
+  await brief.getByRole('button', { name: 'Edit brief' }).click()
+  await expect(brief.getByLabel('Objective')).toBeVisible()
+  await brief.getByLabel('Working line').fill('A floral signal under pressure.')
+  await brief.getByRole('button', { name: 'Save + lock' }).click()
+  await expect(brief).toContainText('A floral signal under pressure.')
+  await expect(brief).toContainText('Brief locked by designer')
+
+  const route = page.getByRole('article', { name: 'Creative route: Mineral severity' })
+  await route.getByRole('button', { name: 'Approve creative route Mineral severity' }).click()
+  await expect(route).toHaveCount(0)
+  await expect(page.getByText('3 pending', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Approved creative route “Mineral severity”')
 })
 
 test('previews and atomically applies a WebMCP Direction Draft at the designer boundary', async ({ page }) => {
@@ -67,7 +84,7 @@ test('previews and atomically applies a WebMCP Direction Draft at the designer b
   })
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(28)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(32)
 
   const proposed = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
@@ -202,7 +219,7 @@ test('builds a sourced type pairing and keeps approval with the designer', async
 
   const typeProposal = page.getByRole('article', { name: 'Type direction: Fraunces and Instrument Sans' })
   await expect(typeProposal).toBeVisible()
-  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 pending', { exact: true })).toBeVisible()
   await typeProposal.getByRole('button', { name: 'Approve type direction' }).click()
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/approved fraunces \+ instrument sans/i)
   await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toContainText('Typeface: Fraunces')
@@ -223,7 +240,7 @@ test('captures a URL, preserves a designer crop, and sends it to review', async 
   await page.getByRole('slider', { name: 'width' }).fill('70')
   await page.getByRole('button', { name: 'Send to Review' }).click()
   await expect(page.getByRole('article', { name: 'Proposal: Mineral glass study' })).toContainText('microlink · X0 Y0 W70 H100')
-  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 pending', { exact: true })).toBeVisible()
 })
 
 test('receives a one-click browser image clip with its source and review boundary intact', async ({ page }) => {
@@ -239,7 +256,7 @@ test('receives a one-click browser image clip with its source and review boundar
   const notice = page.getByRole('region', { name: 'Web clip status' })
   await expect(notice).toContainText('waiting for review')
   await expect(page).toHaveURL('/')
-  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 pending', { exact: true })).toBeVisible()
   const proposal = page.getByRole('article', { name: 'Proposal: Clipped mineral study' })
   await expect(proposal).toContainText('https://example.com/material-study')
   await expect(proposal).toContainText('web-clipper · X0 Y0 W100 H100')

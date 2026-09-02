@@ -2,6 +2,8 @@ import type {
   ActionReceipt,
   BoardItem,
   BoardLayoutProposal,
+  CampaignBrief,
+  CreativeRoute,
   ColorPalette,
   CropRect,
   ImageIsolation,
@@ -27,6 +29,20 @@ const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
 const HEX = /^#[0-9A-F]{6}$/i
 const TAG = /^[\p{L}\p{N}][\p{L}\p{N}\s&+./-]{0,31}$/u
+const conciseList = (values: string[], maximum: number) => Array.isArray(values) && values.length > 0 && values.length <= maximum && values.every((value) => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 120)
+
+function validCampaignBrief(brief: CampaignBrief) {
+  return Boolean(brief.objective?.trim() && brief.objective.length <= 500 && brief.audience?.trim() && brief.audience.length <= 500 && brief.proposition?.trim() && brief.proposition.length <= 500 && brief.schedule?.trim() && brief.schedule.length <= 160)
+    && conciseList(brief.tone, 8) && conciseList(brief.mandatoryAssets, 12) && conciseList(brief.antiDirections, 12)
+}
+
+function validCreativeRoute(route: Omit<CreativeRoute, 'status'>) {
+  return Boolean(route.id?.trim() && route.id.length <= 80 && route.name?.trim() && route.name.length <= 120 && route.thesis?.trim() && route.thesis.length <= 320 && route.territory?.trim() && route.territory.length <= 80 && route.typography?.trim() && route.typography.length <= 320 && route.imageTreatment?.trim() && route.imageTreatment.length <= 320)
+    && route.palette.length >= 2 && route.palette.length <= 6 && route.palette.every((hex) => HEX.test(hex))
+    && conciseList(route.compositionPrinciples, 6)
+    && Number.isFinite(route.frame?.position.x) && Number.isFinite(route.frame?.position.y) && Number.isFinite(route.frame?.width) && Number.isFinite(route.frame?.height)
+    && Math.abs(route.frame.position.x) <= 5000 && Math.abs(route.frame.position.y) <= 5000 && route.frame.width >= 260 && route.frame.width <= 1200 && route.frame.height >= 320 && route.frame.height <= 1200
+}
 const validCrop = (crop: CropRect) => [crop.x, crop.y, crop.width, crop.height].every(Number.isFinite)
   && crop.x >= 0 && crop.y >= 0 && crop.width > 0 && crop.height > 0
   && crop.x + crop.width <= 100 && crop.y + crop.height <= 100
@@ -205,6 +221,14 @@ function applyUndoEffect(state: WorkspaceState, effect: UndoEffect): WorkspaceSt
         ...state,
         boardItems: state.boardItems.map((item) => item.id === effect.itemId ? { ...item, locked: effect.previousLocked } : item),
       }
+    case 'campaign-brief':
+      return { ...state, campaign: effect.previousCampaign }
+    case 'campaign-brief-lock':
+      return { ...state, campaign: { ...state.campaign, briefStatus: effect.previousStatus } }
+    case 'creative-routes-proposal':
+      return { ...state, creativeRoutes: state.creativeRoutes.filter((route) => !effect.routeIds.includes(route.id)) }
+    case 'creative-route-decision':
+      return { ...state, creativeRoutes: state.creativeRoutes.map((route) => route.id === effect.routeId ? { ...route, status: effect.previousStatus } : route) }
   }
 }
 
@@ -436,6 +460,40 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         { ...state, boardItems: state.boardItems.map((candidate) => candidate.id === item.id ? { ...candidate, locked: command.locked } : candidate) },
         command, `${command.locked ? 'Locked' : 'Unlocked'} ${item.title}.`, { type: 'lock', itemId: item.id, previousLocked: item.locked },
       )
+    }
+    case 'update-campaign-brief': {
+      if (state.campaign.briefStatus === 'locked') return failure(state, 'BRIEF_LOCKED', 'Unlock the campaign brief before changing its direction.')
+      if (!command.name.trim() || command.name.length > 120 || !command.line.trim() || command.line.length > 180 || !validCampaignBrief(command.brief)) return failure(state, 'INVALID_CAMPAIGN_BRIEF', 'The brief needs a campaign name, line, objective, audience, proposition, tone, mandatories, anti-directions, and schedule.')
+      const previousCampaign = state.campaign
+      const nextCampaign = {
+        ...state.campaign,
+        name: command.name.trim(), line: command.line.trim(), brief: command.brief.objective.trim(),
+        deliverables: command.brief.mandatoryAssets.map((value) => value.trim()), constraints: command.brief.antiDirections.map((value) => value.trim()),
+        creativeBrief: { ...command.brief, objective: command.brief.objective.trim(), audience: command.brief.audience.trim(), proposition: command.brief.proposition.trim(), schedule: command.brief.schedule.trim(), tone: command.brief.tone.map((value) => value.trim()), mandatoryAssets: command.brief.mandatoryAssets.map((value) => value.trim()), antiDirections: command.brief.antiDirections.map((value) => value.trim()) },
+      }
+      return success({ ...state, campaign: nextCampaign }, command, `Updated the ${nextCampaign.name} campaign brief.`, { type: 'campaign-brief', previousCampaign })
+    }
+    case 'set-campaign-brief-lock': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can lock or unlock the campaign brief.')
+      const nextStatus = command.locked ? 'locked' : 'draft'
+      if (state.campaign.briefStatus === nextStatus) return failure(state, 'INVALID_CAMPAIGN_BRIEF', `The campaign brief is already ${nextStatus}.`)
+      return success({ ...state, campaign: { ...state.campaign, briefStatus: nextStatus } }, command, `${command.locked ? 'Locked' : 'Unlocked'} the campaign brief.`, { type: 'campaign-brief-lock', previousStatus: state.campaign.briefStatus })
+    }
+    case 'propose-creative-routes': {
+      if (state.campaign.briefStatus !== 'locked') return failure(state, 'BRIEF_LOCKED', 'Lock the campaign brief before proposing creative routes.')
+      const activeRouteCount = state.creativeRoutes.filter((route) => route.status !== 'rejected').length
+      if (command.routes.length < 1 || activeRouteCount + command.routes.length > 3 || command.routes.some((route) => !validCreativeRoute(route))) return failure(state, 'INVALID_CREATIVE_ROUTES', 'A board supports up to three active routes with valid rationale, visual principles, palette, and bounded frames.')
+      const routeIds = command.routes.map((route) => route.id)
+      if (new Set(routeIds).size !== routeIds.length || routeIds.some((id) => state.creativeRoutes.some((route) => route.id === id))) return failure(state, 'INVALID_CREATIVE_ROUTES', 'Creative route IDs must be unique on this board.')
+      const routes = command.routes.map((route) => ({ ...route, name: route.name.trim(), thesis: route.thesis.trim(), territory: route.territory.trim(), typography: route.typography.trim(), imageTreatment: route.imageTreatment.trim(), compositionPrinciples: route.compositionPrinciples.map((value) => value.trim()), status: 'pending' as const }))
+      return success({ ...state, creativeRoutes: [...state.creativeRoutes, ...routes] }, command, `Added ${routes.length} creative route${routes.length === 1 ? '' : 's'} to designer review.`, { type: 'creative-routes-proposal', routeIds })
+    }
+    case 'review-creative-route': {
+      if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can approve or reject a creative route.')
+      const route = state.creativeRoutes.find((candidate) => candidate.id === command.routeId)
+      if (!route) return failure(state, 'CREATIVE_ROUTE_NOT_FOUND', 'The creative route no longer exists.')
+      if (route.status !== 'pending') return failure(state, 'CREATIVE_ROUTE_NOT_PENDING', 'Only pending creative routes can be reviewed.')
+      return success({ ...state, creativeRoutes: state.creativeRoutes.map((candidate) => candidate.id === route.id ? { ...candidate, status: command.decision === 'approve' ? 'approved' : 'rejected' } : candidate) }, command, `${command.decision === 'approve' ? 'Approved' : 'Rejected'} creative route “${route.name}”.`, { type: 'creative-route-decision', routeId: route.id, previousStatus: route.status })
     }
     case 'undo-receipt': {
       const target = state.receipts.find((receipt) => receipt.id === command.receiptId)

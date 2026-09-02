@@ -7,8 +7,23 @@ export function createDemoWorkspaceState(): WorkspaceState {
       brief: 'A tense floral fragrance campaign with tactile industrial contrast.',
       deliverables: ['Campaign direction board', 'Source-aware reference set', 'Direction brief'],
       constraints: ['Keep three client references locked', 'Review agent discoveries before placement'],
+      briefStatus: 'locked',
+      creativeBrief: {
+        objective: 'Launch a fictional fragrance through one memorable, art-directed visual system.',
+        audience: 'Design-conscious fragrance buyers who value materiality over conventional luxury cues.',
+        proposition: 'A floral scent can feel mineral, tense, and electrically alive.',
+        tone: ['tactile', 'severe', 'strange', 'warm'],
+        mandatoryAssets: ['Static Bloom wordmark', 'Fragrance bottle', 'Launch line: The air remembers.'],
+        antiDirections: ['Generic clean beauty', 'Soft romantic florals', 'Literal botanical illustration'],
+        schedule: 'Direction review · May 20',
+      },
     },
     version: 3,
+    creativeRoutes: [
+      { id: 'route-mineral', name: 'Mineral severity', thesis: 'Cold structure cut by one sodium flare.', territory: 'Material tension', palette: ['#171717', '#D18A0E', '#D0C7BA'], typography: 'Compressed grotesk with restrained mono data.', imageTreatment: 'Hard crop, wet specular detail, near-black tonal floor.', compositionPrinciples: ['Severe verticals', 'One hot interruption', 'Generous dead space'], status: 'pending', frame: { position: { x: 34, y: 44 }, width: 330, height: 800 } },
+      { id: 'route-botanical', name: 'Botanical fracture', thesis: 'A preserved bloom treated as evidence, not decoration.', territory: 'Floral artifact', palette: ['#4B263B', '#BBA885', '#171717'], typography: 'Editorial serif tension against utilitarian labels.', imageTreatment: 'Translucent layers, resin distortion, magnified organic fragments.', compositionPrinciples: ['Specimen scale', 'Overlapping evidence', 'Off-axis captions'], status: 'pending', frame: { position: { x: 390, y: 44 }, width: 330, height: 800 } },
+      { id: 'route-synthetic', name: 'Synthetic warmth', thesis: 'Industrial heat made intimate through paper, amber, and skin.', territory: 'Type pressure', palette: ['#E1B86A', '#A05040', '#171717'], typography: 'Overscaled condensed display type under physical pressure.', imageTreatment: 'Warm grain, imperfect registration, tactile print density.', compositionPrinciples: ['Type as image', 'Asymmetric pressure', 'Visible production marks'], status: 'pending', frame: { position: { x: 746, y: 44 }, width: 330, height: 800 } },
+    ],
     placementPolicy: { allowAgentDirectPlacement: false, directPlacementTerritory: 'Agent Additions' },
     colorPalette: {
       extraction: null,

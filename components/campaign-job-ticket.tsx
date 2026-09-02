@@ -1,51 +1,63 @@
-import { LockKeyhole, Paperclip } from 'lucide-react'
+'use client'
 
-import type { Campaign, WorkspaceState } from '../lib/domain/types'
+import { LockKeyhole, LockOpen, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
-function TicketField({ label, value }: { label: string; value: string }) {
-  return <><dt>{label}</dt><dd>{value}</dd></>
+import type { Campaign, CampaignBrief, WorkspaceState } from '../lib/domain/types'
+import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
+
+const joinList = (items: string[]) => items.join('\n')
+const splitList = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
+
+export function CampaignJobTicket({ campaign, version, runtime, onClose }: { campaign: Campaign; version: WorkspaceState['version']; runtime: WorkspaceRuntime; onClose?: () => void }) {
+  const [name, setName] = useState(campaign.name)
+  const [line, setLine] = useState(campaign.line)
+  const [brief, setBrief] = useState({ ...campaign.creativeBrief, tone: joinList(campaign.creativeBrief.tone), mandatoryAssets: joinList(campaign.creativeBrief.mandatoryAssets), antiDirections: joinList(campaign.creativeBrief.antiDirections) })
+  const [message, setMessage] = useState('')
+  const locked = campaign.briefStatus === 'locked'
+
+  useEffect(() => {
+    setName(campaign.name); setLine(campaign.line)
+    setBrief({ ...campaign.creativeBrief, tone: joinList(campaign.creativeBrief.tone), mandatoryAssets: joinList(campaign.creativeBrief.mandatoryAssets), antiDirections: joinList(campaign.creativeBrief.antiDirections) })
+  }, [campaign])
+
+  const updateField = (field: keyof typeof brief, value: string) => setBrief((current) => ({ ...current, [field]: value }))
+  const commandBrief = (): CampaignBrief => ({ ...brief, tone: splitList(brief.tone), mandatoryAssets: splitList(brief.mandatoryAssets), antiDirections: splitList(brief.antiDirections) })
+  const saveDraft = () => {
+    const current = runtime.getSnapshot()
+    const result = runtime.dispatch({ type: 'update-campaign-brief', campaignId: campaign.id, boardId: campaign.boardId, expectedVersion: current.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', name, line, brief: commandBrief() })
+    setMessage(result.ok ? result.receipt.summary : result.error.message)
+    return result
+  }
+  const setLock = (nextLocked: boolean) => {
+    const current = runtime.getSnapshot()
+    const result = runtime.dispatch({ type: 'set-campaign-brief-lock', campaignId: current.campaign.id, boardId: current.campaign.boardId, expectedVersion: current.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', locked: nextLocked })
+    setMessage(result.ok ? result.receipt.summary : result.error.message)
+  }
+  const saveAndLock = () => { const saved = saveDraft(); if (saved.ok) setLock(true) }
+
+  return <aside className="job-ticket" id="campaign-job-ticket" aria-label="Campaign job ticket">
+    <div className="ticket-topline"><span>Campaign brief</span><span className="ticket-id">{locked ? 'Locked' : 'Draft'}</span><button className="drawer-close" type="button" onClick={onClose}>Close brief</button></div>
+    <section className="ticket-title" aria-labelledby="campaign-name">
+      {locked ? <><h1 id="campaign-name">{campaign.name}</h1><p>{campaign.line}</p></> : <><label>Campaign name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Working line<input value={line} onChange={(event) => setLine(event.target.value)} /></label></>}
+    </section>
+    <div className="brief-fields">
+      <BriefField label="Objective" value={brief.objective} locked={locked} onChange={(value) => updateField('objective', value)} />
+      <BriefField label="Audience" value={brief.audience} locked={locked} onChange={(value) => updateField('audience', value)} />
+      <BriefField label="Proposition" value={brief.proposition} locked={locked} onChange={(value) => updateField('proposition', value)} />
+      <BriefField label="Tone / one per line" value={brief.tone} locked={locked} onChange={(value) => updateField('tone', value)} />
+      <BriefField label="Mandatory assets / one per line" value={brief.mandatoryAssets} locked={locked} onChange={(value) => updateField('mandatoryAssets', value)} />
+      <BriefField label="Anti-directions / one per line" value={brief.antiDirections} locked={locked} onChange={(value) => updateField('antiDirections', value)} />
+      <BriefField label="Schedule" value={brief.schedule} locked={locked} onChange={(value) => updateField('schedule', value)} singleLine />
+    </div>
+    <section className="version-history" aria-labelledby="version-history"><h2 id="version-history">Session state</h2><p>Board V{String(version).padStart(2, '0')} · one local session</p><small>Persistent projects, recovery, and export are the next production milestone.</small></section>
+    {message && <p className="ticket-message" aria-live="polite">{message}</p>}
+    <footer className="ticket-footer">
+      {locked ? <><span><LockKeyhole aria-hidden="true" />Brief locked by designer</span><button type="button" onClick={() => setLock(false)}><LockOpen aria-hidden="true" />Edit brief</button></> : <><button type="button" onClick={saveDraft}><Save aria-hidden="true" />Save draft</button><button type="button" onClick={saveAndLock}><LockKeyhole aria-hidden="true" />Save + lock</button></>}
+    </footer>
+  </aside>
 }
 
-export function CampaignJobTicket({ campaign, version, onClose }: { campaign: Campaign; version: WorkspaceState['version']; onClose?: () => void }) {
-  return (
-    <aside className="job-ticket" id="campaign-job-ticket" aria-label="Campaign job ticket">
-      <div className="ticket-topline"><span>Campaign job ticket</span><span className="ticket-id">#SB-2024-017</span><button className="drawer-close" type="button" onClick={onClose}>Close brief</button></div>
-      <section className="ticket-title" aria-labelledby="campaign-name">
-        <h1 id="campaign-name">{campaign.name}</h1>
-        <p>The air remembers.</p>
-      </section>
-      <dl className="ticket-facts">
-        <TicketField label="Client" value="Iterum" />
-        <TicketField label="Brand" value="Iterum" />
-        <TicketField label="Campaign" value={campaign.name} />
-        <TicketField label="Art director" value="Iterum studio" />
-        <TicketField label="Producer" value="Iterum studio" />
-      </dl>
-      <section className="ticket-copy" aria-labelledby="ticket-notes">
-        <h2 id="ticket-notes">Notes / direction</h2>
-        <p>ozone<br />crushed iris<br />mineral rain<br />warm concrete<br />skin</p>
-      </section>
-      <section className="ticket-copy" aria-labelledby="ticket-deliverables">
-        <h2 id="ticket-deliverables">Deliverables</h2>
-        <ul>{campaign.deliverables.map((item) => <li key={item}>{item}</li>)}</ul>
-      </section>
-      <section className="ticket-copy ticket-constraints" aria-labelledby="ticket-constraints">
-        <h2 id="ticket-constraints">Anti-directions</h2>
-        <ul>{campaign.constraints.map((item) => <li key={item}>{item}</li>)}</ul>
-      </section>
-      <section className="version-history" aria-labelledby="version-history">
-        <h2 id="version-history">Versions</h2>
-        <ol>
-          <li><b>V01</b><span>May 16</span><em>Initial concept</em></li>
-          <li><b>V02</b><span>May 18</span><em>Type + image</em></li>
-          <li><b>V{String(version).padStart(2, '0')}</b><span>May 20</span><em>Agent review</em></li>
-        </ol>
-      </section>
-      <section className="attachments" aria-labelledby="attachments-title">
-        <h2 id="attachments-title">Attachments (3)</h2>
-        <ul><li><Paperclip aria-hidden="true" />STATIC_BLOOM_BRIEF.pdf</li><li><Paperclip aria-hidden="true" />STATIC_BLOOM_COPY.txt</li><li><Paperclip aria-hidden="true" />MOOD_NOTES.vrt</li></ul>
-      </section>
-      <footer className="ticket-footer"><span><LockKeyhole aria-hidden="true" />Ticket locked</span><button type="button">Edit locked fields</button></footer>
-    </aside>
-  )
+function BriefField({ label, value, locked, onChange, singleLine = false }: { label: string; value: string; locked: boolean; onChange: (value: string) => void; singleLine?: boolean }) {
+  return <section className="ticket-copy"><h2>{label}</h2>{locked ? <p>{value.split('\n').map((line) => <span key={line}>{line}</span>)}</p> : singleLine ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} /> : <textarea aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} rows={Math.min(5, Math.max(2, value.split('\n').length))} />}</section>
 }

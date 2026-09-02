@@ -14,6 +14,7 @@ import { NoteNode } from './note-node'
 import { BoardGroupOutlines, LayoutGhostPreview } from './layout-ghost-preview'
 import { CampaignProofNode } from './campaign-proof-node'
 import { ColorStripNode } from './color-strip-node'
+import { CreativeRouteFrame } from './creative-route-frame'
 
 Konva.hitOnDragEnabled = true
 
@@ -165,6 +166,7 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
     </Layer>
     <Layer x={viewport.x} y={viewport.y} scaleX={viewport.scale} scaleY={viewport.scale}>
       <Text text="WORKING MECHANICAL · 48 × 72 IN · 300 DPI" x={22} y={18} fontFamily="IBM Plex Mono" fontSize={10} fill="#171717" />
+      {snapshot.creativeRoutes.map((route) => <CreativeRouteFrame key={route.id} route={route} />)}
       {proposalPreview && <><Rect x={proposalPreview.position.x} y={proposalPreview.position.y} width={224} height={286} stroke="#4779b8" strokeWidth={2} dash={[8, 5]} fill="rgba(71,121,184,0.08)" /><Text text={`DESTINATION PREVIEW\n${proposalPreview.proposal.intendedTerritory}`} x={proposalPreview.position.x + 10} y={proposalPreview.position.y + 10} fontFamily="IBM Plex Mono" fontSize={9} fill="#4779b8" /></>}
       <BoardGroupOutlines snapshot={snapshot} />
       {snapshot.boardItems.map((item) => item.kind === 'type-specimen'

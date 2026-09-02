@@ -331,4 +331,33 @@ describe('applyWorkspaceCommand', () => {
     expect(undone.state.boardItems.some((item) => item.sourceProposalId === 'proposal-resin')).toBe(false)
     expect(undone.receipt?.action).toBe('undo-receipt')
   })
+
+  it('requires a designer-unlocked brief and keeps brief changes undoable', () => {
+    const initial = createDemoWorkspaceState()
+    const blocked = applyWorkspaceCommand(initial, { type: 'update-campaign-brief', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'blocked-brief', actor: 'agent', name: 'Static Bloom', line: 'New line', brief: initial.campaign.creativeBrief })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'BRIEF_LOCKED' } })
+    const unlocked = applyWorkspaceCommand(initial, { type: 'set-campaign-brief-lock', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'unlock-brief', actor: 'designer', locked: false })
+    expect(unlocked.ok).toBe(true)
+    if (!unlocked.ok) return
+    const updated = applyWorkspaceCommand(unlocked.state, { type: 'update-campaign-brief', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: unlocked.state.version, idempotencyKey: 'update-brief', actor: 'agent', name: 'Static Bloom', line: 'The air keeps evidence.', brief: { ...initial.campaign.creativeBrief, proposition: 'A floral scent can feel forensic and alive.' } })
+    expect(updated.ok).toBe(true)
+    if (!updated.ok) return
+    expect(updated.state.campaign).toMatchObject({ line: 'The air keeps evidence.', creativeBrief: { proposition: 'A floral scent can feel forensic and alive.' } })
+    const undone = applyWorkspaceCommand(updated.state, { type: 'undo-receipt', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: updated.state.version, idempotencyKey: 'undo-brief', actor: 'designer', receiptId: updated.receipt.id })
+    expect(undone.ok).toBe(true)
+    if (undone.ok) expect(undone.state.campaign.line).toBe(initial.campaign.line)
+  })
+
+  it('keeps creative-route approval with the designer', () => {
+    const initial = createDemoWorkspaceState()
+    const route = { id: 'route-night', name: 'Night signal', thesis: 'A colder route with one electric floral note.', territory: 'Night signal', palette: ['#111111', '#4779B8'], typography: 'Condensed display against neutral mono.', imageTreatment: 'Deep shadow and isolated reflected light.', compositionPrinciples: ['One focal flare', 'Hard vertical alignment'], frame: { position: { x: 40, y: 40 }, width: 320, height: 700 } }
+    const proposed = applyWorkspaceCommand({ ...initial, creativeRoutes: [] }, { type: 'propose-creative-routes', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: initial.version, idempotencyKey: 'routes', actor: 'agent', routes: [route] })
+    expect(proposed.ok).toBe(true)
+    if (!proposed.ok) return
+    const blocked = applyWorkspaceCommand(proposed.state, { type: 'review-creative-route', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'agent-route-decision', actor: 'agent', routeId: route.id, decision: 'approve' })
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'DESIGNER_REVIEW_REQUIRED' } })
+    const approved = applyWorkspaceCommand(proposed.state, { type: 'review-creative-route', campaignId: initial.campaign.id, boardId: initial.campaign.boardId, expectedVersion: proposed.state.version, idempotencyKey: 'designer-route-decision', actor: 'designer', routeId: route.id, decision: 'approve' })
+    expect(approved.ok).toBe(true)
+    if (approved.ok) expect(approved.state.creativeRoutes[0].status).toBe('approved')
+  })
 })
