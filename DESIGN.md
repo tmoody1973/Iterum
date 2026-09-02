@@ -208,6 +208,7 @@ Borders are hairline and tonal. Dashed non-photo-blue outlines identify an uncom
 - **Agent boundary:** WebMCP can capture, search, and propose; it cannot approve the reference or silently place it outside the existing direct-placement policy.
 - **Local isolation:** Pending proposals may create an edge-connected transparent PNG derivative entirely in the browser. The checkerboard preview, removed-area percentage, original-image restore, receipt, and Undo keep the derivative visibly reversible; WebMCP can generate a preview but cannot commit it.
 - **Searchable library:** Board references and pending proposals share one searchable index over titles, territories, sources, providers, approved tags, and pending tag suggestions. Agent-proposed tags stay in a blue-marked review block until the designer approves or rejects them; every decision is versioned and undoable.
+- **Browser clipper:** The unpacked Manifest V3 extension offers page, image, and toolbar capture. Its one-time URL handoff carries only a public source, optional public image, title, and clip ID; Iterum validates and removes the handoff parameters before creating an uncertain-rights proposal in Agent Additions. A blue proofing notice confirms receipt while approval and Undo remain standard review actions.
 
 ### Working Mechanical
 

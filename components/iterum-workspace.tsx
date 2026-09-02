@@ -2,6 +2,7 @@
 
 import { useWorkspaceSnapshot } from '../hooks/use-workspace-snapshot'
 import { useWebMcpTools } from '../hooks/use-webmcp-tools'
+import { useWebClipIntake } from '../hooks/use-web-clip-intake'
 import { demoRuntime } from '../lib/domain/demo-runtime'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
 import type { Point, Proposal, WorkspaceState } from '../lib/domain/types'
@@ -43,6 +44,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const workspaceRuntime = runtime ?? demoRuntime
   const snapshot = useWorkspaceSnapshot(workspaceRuntime)
   useWebMcpTools(workspaceRuntime)
+  useWebClipIntake(workspaceRuntime)
   const activeTool = useUiStore((state) => state.activeTool)
   const setActiveTool = useUiStore((state) => state.setActiveTool)
   const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
@@ -127,7 +129,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
           <ActionReceipt receipt={snapshot.receipts[0]} runtime={workspaceRuntime} />
           <p className="board-preview-notice">Board preview · canvas editing continues on desktop</p>
         </main>
-        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={closeReview} proposalPlacement={pendingProposal ? pendingPlacement : undefined} />
+        <ReviewTray snapshot={snapshot} runtime={workspaceRuntime} onClose={closeReview} proposalPlacement={pendingPlacement} />
       </div>
       <BottomModeBar version={snapshot.version} />
     </div>

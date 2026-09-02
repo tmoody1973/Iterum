@@ -14,16 +14,16 @@ afterEach(() => { delete document.modelContext })
 describe('registerIterumTools', () => {
   it('falls back without a browser API', async () => expect(await registerIterumTools(runtime())).toBeNull())
 
-  it('registers fourteen strict tools sequentially and returns versioned errors and receipts', async () => {
+  it('registers fifteen strict tools sequentially and returns versioned errors and receipts', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown; inputSchema: Record<string, unknown>; annotations?: { untrustedContentHint?: boolean } }> = []
     const signals: AbortSignal[] = []
     document.modelContext = { registerTool: vi.fn(async (tool, options) => { registered.push(tool); signals.push(options?.signal!); return undefined }) }
     const work = runtime()
     const result = await registerIterumTools(work)
-    expect(result?.count).toBe(14)
-    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_reference_tags', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
+    expect(result?.count).toBe(15)
+    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_web_clip', 'propose_reference_tags', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
     expect(registered.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true)
-    expect(signals).toHaveLength(14)
+    expect(signals).toHaveLength(15)
     expect(signals.every((signal) => signal === result?.controller.signal)).toBe(true)
     expect(registered.every((tool) => tool.annotations?.untrustedContentHint === true)).toBe(true)
     const approve = registered.find((tool) => tool.name === 'approve_reference')!
@@ -48,6 +48,18 @@ describe('registerIterumTools', () => {
     expect(controller.signal.aborted).toBe(true)
   })
 
+  it('routes an agent web clip through the pending Review Tray', async () => {
+    const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
+    document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
+    const work = runtime()
+    await registerIterumTools(work)
+    const webClip = registered.find((tool) => tool.name === 'propose_web_clip')!
+    const response = await webClip.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'agent-web-clip', clip: { id: 'material-1', title: 'Mineral foil', sourceUrl: 'https://example.com/material', imageUrl: 'https://images.example.com/material.jpg' } }, { signal: new AbortController().signal }) as { ok: boolean }
+    expect(response.ok).toBe(true)
+    expect(work.getSnapshot().proposals[0]).toMatchObject({ id: 'web-clip-material-1', status: 'pending', captureProvider: 'web-clipper', rightsStatus: 'uncertain', sourceUrl: 'https://example.com/material' })
+    expect(work.getSnapshot().boardItems).toHaveLength(3)
+  })
+
   it('rejects strict malformed, private, and designer-only tool input without mutation', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
     document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
@@ -65,6 +77,9 @@ describe('registerIterumTools', () => {
     const tagProposal = registered.find((tool) => tool.name === 'propose_reference_tags')!
     const invalidTags = await tagProposal.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'bad-tags', targetType: 'proposal', referenceId: 'proposal-resin', suggestionId: 'bad', tags: [], rationale: 'Empty tags.' }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(invalidTags.error?.code).toBe('VALIDATION_ERROR')
+    const webClip = registered.find((tool) => tool.name === 'propose_web_clip')!
+    const privateWebClip = await webClip.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'private-clip', clip: { id: 'private', title: 'Private clip', sourceUrl: 'http://127.0.0.1/private' } }, { signal: new AbortController().signal }) as { error?: { code: string } }
+    expect(privateWebClip.error?.code).toBe('VALIDATION_ERROR')
     const extract = registered.find((tool) => tool.name === 'extract_reference_palette')!
     const malformedExtraction = await extract.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', referenceId: 'reference-iris', crop: 'diagonal' }, { signal: new AbortController().signal }) as { error?: { code: string } }
     expect(malformedExtraction.error?.code).toBe('VALIDATION_ERROR')
@@ -89,7 +104,7 @@ describe('registerIterumTools', () => {
     const work = runtime()
     function Harness() { useWebMcpTools(work); return null }
     const mounted = render(createElement(Harness))
-    await vi.waitFor(() => expect(signals).toHaveLength(14))
+    await vi.waitFor(() => expect(signals).toHaveLength(15))
     mounted.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })

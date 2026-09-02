@@ -2,7 +2,7 @@ export type Actor = 'designer' | 'agent' | 'system'
 
 export type Point = { x: number; y: number }
 export type CropRect = { x: number; y: number; width: number; height: number }
-export type CaptureProvider = 'microlink' | 'pexels' | 'manual'
+export type CaptureProvider = 'microlink' | 'pexels' | 'manual' | 'web-clipper'
 export type ReferenceTargetType = 'proposal' | 'board-item'
 export type TagSuggestionStatus = 'pending' | 'approved' | 'rejected'
 

@@ -90,6 +90,32 @@ test('captures a URL, preserves a designer crop, and sends it to review', async 
   await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
 })
 
+test('receives a one-click browser image clip with its source and review boundary intact', async ({ page }) => {
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+  await page.route('https://images.example.com/mineral.png', async (route) => route.fulfill({ status: 200, contentType: 'image/png', body: pixel }))
+  const params = new URLSearchParams({
+    clip: '1', clip_id: 'mineral-clip', clip_source: 'https://example.com/material-study',
+    clip_image: 'https://images.example.com/mineral.png', clip_title: 'Clipped mineral study',
+  })
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/?${params}`)
+
+  const notice = page.getByRole('region', { name: 'Web clip status' })
+  await expect(notice).toContainText('waiting for review')
+  await expect(page).toHaveURL('/')
+  await expect(page.getByText('2 pending', { exact: true })).toBeVisible()
+  const proposal = page.getByRole('article', { name: 'Proposal: Clipped mineral study' })
+  await expect(proposal).toContainText('https://example.com/material-study')
+  await expect(proposal).toContainText('web-clipper · X0 Y0 W100 H100')
+
+  await proposal.getByRole('button', { name: 'Approve to Agent Additions' }).click()
+  await expect(page.getByText('4 items', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Select Clipped mineral study' })).toBeVisible()
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByText('3 items', { exact: true })).toBeVisible()
+  await expect(proposal).toBeVisible()
+})
+
 test('isolates a proposal locally and restores the original with a versioned action', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')

@@ -56,6 +56,7 @@ The product's defining interaction is the visible transition from agent proposal
 - Search reusable photographic references through Unsplash, discover broader visual references through SerpAPI Google Images, and accept sourced URLs from browser-agent research.
 - Add uploaded images, sketches, links, materials, products, screenshots, and notes.
 - Capture a public URL automatically, then let the designer crop it in the app. Preserve the original capture and store crop coordinates separately.
+- Receive one-click page and image clips from the local browser extension, preserve the hosting page, and route every clip through the Review Tray. Agents use the parallel `propose_web_clip` WebMCP tool and cannot bypass review.
 - Propose references to the Review Tray with source, attribution, rationale, category, and proposed territory.
 - Approve or reject proposals, create visual territories, place approved items, lock items, and undo agent actions.
 - Extract, compare, edit, and place color palettes. Deterministic image analysis supplies actual color values; agent interpretation assigns creative roles.

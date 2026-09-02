@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Iterum Web Clipper",
+  "version": "0.1.0",
+  "description": "Send a webpage or image to the Iterum Review Tray with its source preserved.",
+  "permissions": ["activeTab", "contextMenus"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Clip this page to Iterum"
+  }
+}
