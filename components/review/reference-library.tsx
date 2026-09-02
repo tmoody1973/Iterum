@@ -31,7 +31,7 @@ export function ReferenceLibrary({ snapshot, runtime }: { snapshot: WorkspaceSta
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<'all' | 'on board' | 'in review'>('all')
   const [message, setMessage] = useState('Search titles, territories, sources, and approved tags.')
-  const entries = useMemo(() => [...snapshot.boardItems.map(entryFromBoard), ...snapshot.proposals.filter((proposal) => proposal.status === 'pending').map(entryFromProposal)], [snapshot])
+  const entries = useMemo(() => [...snapshot.boardItems.filter((item) => item.kind !== 'type-specimen').map(entryFromBoard), ...snapshot.proposals.filter((proposal) => proposal.status === 'pending').map(entryFromProposal)], [snapshot])
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const matches = entries.filter((entry) => {
     if (scope !== 'all' && entry.state !== scope) return false

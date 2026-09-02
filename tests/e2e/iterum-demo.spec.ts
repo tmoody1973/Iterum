@@ -26,7 +26,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
   await expect(page.getByRole('complementary', { name: 'Campaign job ticket' })).toBeVisible()
   await expect(page.getByRole('main', { name: 'Working mechanical' })).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Review tray' })).toBeVisible()
-  await expect(page.getByText('3 items', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 items', { exact: true })).toBeVisible()
   const mechanical = page.getByRole('main', { name: 'Working mechanical' })
   const preview = page.getByTestId('proposal-placement')
   await expect(preview).toBeVisible()
@@ -42,7 +42,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
   const destination = await preview.getAttribute('data-placement')
 
   await page.getByRole('button', { name: /approve to floral artifact/i }).click()
-  await expect(page.getByText('4 items', { exact: true })).toBeVisible()
+  await expect(page.getByText('6 items', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Select Resin iris / violet fracture' })).toBeVisible()
   await expect(preview).toHaveClass(/is-placed/)
   await expect(preview).toHaveAttribute('data-placement', destination!)
@@ -52,7 +52,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(destination!)
 
   await page.getByRole('button', { name: 'Undo' }).click()
-  await expect(page.getByText('3 items', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 items', { exact: true })).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Review tray' })).toContainText('1 pending')
   await expect(page.getByRole('button', { name: /approve to floral artifact/i })).toBeVisible()
   await expect(preview).toHaveClass(/is-preview/)
@@ -61,6 +61,47 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
 test('shows the safe Preview state without a model context', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('WebMCP preview', { exact: true })).toBeVisible()
+})
+
+test('selects type specimens and navigates the full mechanical', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  const zoom = page.getByLabel('Current board zoom')
+  await expect(zoom).toContainText('%')
+  await page.getByRole('button', { name: 'Fit board' }).click()
+  const fittedZoom = await zoom.textContent()
+
+  await page.getByRole('button', { name: 'Select Headline type specimen' }).click()
+  await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(zoom).not.toHaveText(fittedZoom!)
+  await page.getByRole('button', { name: 'Set board zoom to 100 percent' }).click()
+  await expect(zoom).toHaveText('100%')
+  await page.getByRole('button', { name: 'Fit board' }).click()
+  await expect(zoom).toHaveText(fittedZoom!)
+
+  const canvas = page.locator('.konvajs-content')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.wheel(0, -260)
+  await expect(zoom).not.toHaveText(fittedZoom!)
+
+  const world = page.locator('.board-overlay-world')
+  const beforePan = await world.getAttribute('style')
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.keyboard.down('Space')
+  await page.mouse.down()
+  await page.mouse.move(box!.x + box!.width / 2 + 70, box!.y + box!.height / 2 + 35, { steps: 4 })
+  await page.mouse.up()
+  await page.keyboard.up('Space')
+  await expect(world).not.toHaveAttribute('style', beforePan!)
+
+  const beforeMiddlePan = await world.getAttribute('style')
+  await page.mouse.down({ button: 'middle' })
+  await page.mouse.move(box!.x + box!.width / 2 + 110, box!.y + box!.height / 2 + 70, { steps: 3 })
+  await page.mouse.up({ button: 'middle' })
+  await expect(world).not.toHaveAttribute('style', beforeMiddlePan!)
 })
 
 test('extracts and saves a deterministic local color palette from a reference crop', async ({ page }) => {
@@ -139,10 +180,10 @@ test('receives a one-click browser image clip with its source and review boundar
   await expect(proposal).toContainText('web-clipper · X0 Y0 W100 H100')
 
   await proposal.getByRole('button', { name: 'Approve to Agent Additions' }).click()
-  await expect(page.getByText('4 items', { exact: true })).toBeVisible()
+  await expect(page.getByText('6 items', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Select Clipped mineral study' })).toBeVisible()
   await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
-  await expect(page.getByText('3 items', { exact: true })).toBeVisible()
+  await expect(page.getByText('5 items', { exact: true })).toBeVisible()
   await expect(proposal).toBeVisible()
 })
 

@@ -51,6 +51,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
   const setActiveTool = useUiStore((state) => state.setActiveTool)
   const setActiveRightTab = useUiStore((state) => state.setActiveRightTab)
   const selectedBoardItemId = useUiStore((state) => state.selectedBoardItemId)
+  const boardViewport = useUiStore((state) => state.boardViewport)
   const selectBoardItem = useUiStore((state) => state.selectBoardItem)
   const isBriefDrawerOpen = useUiStore((state) => state.isBriefDrawerOpen)
   const isReviewDrawerOpen = useUiStore((state) => state.isReviewDrawerOpen)
@@ -72,6 +73,7 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
       ? pinnedColors
       : ['#c72b58', '#171717', '#4779b8', '#d18a0e', '#ead33e', '#a05040', '#217a3a', '#a0b9c1', '#d0c7ba', '#554a3d']
   useTypefaceStylesheet(snapshot.typeDirection?.headline)
+  useTypefaceStylesheet(snapshot.typeDirection?.body)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -108,27 +110,29 @@ export function IterumWorkspace({ runtime }: { runtime?: WorkspaceRuntime }) {
         <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} onClose={closeBrief} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>Static_bloom_poster_48x72_{versionLabel}.indd</span><span>48 × 72 in · portrait · 300 dpi</span></div>
-          <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} />
+          <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} boardItems={snapshot.boardItems} />
           {activeTool === 'color' && <ColorStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} />}
           {activeTool === 'type' && <TypographyStudio snapshot={snapshot} runtime={workspaceRuntime} onClose={() => setActiveTool('select')} onProposed={() => { setActiveTool('select'); setActiveRightTab('review') }} />}
           <div className="ruler ruler-top" aria-hidden="true" />
           <section className="pasteboard" aria-label="Static Bloom campaign board">
-            <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
             <div className="mechanical-canvas-host" ref={canvasHost} aria-hidden="true">
               {canvasSize.width > 0 && canvasSize.height > 0 && <MechanicalCanvas snapshot={snapshot} runtime={workspaceRuntime} width={canvasSize.width} height={canvasSize.height} selectedId={selectedBoardItemId} onSelect={selectBoardItem} proposalPreview={pendingProposal ? { proposal: pendingProposal, position: pendingPlacement } : undefined} />}
             </div>
-            <article className="poster-proof">
-              <span className="tape tape-top" aria-hidden="true" />
-              <p className="poster-brand">ITERUM</p><p className="poster-campaign">Static bloom</p>
-              <h2 style={{ fontFamily: fontFamilyFor(snapshot.typeDirection?.headline) }}>The air re-<br />members.</h2>
-              <img src="/assets/ref-resin-iris.webp" alt="Crushed iris in resin campaign proof" />
-              <p className="poster-notes">ozone<br />crushed iris<br />mineral rain<br />warm concrete<br />skin</p>
-              <p className="poster-footer">ITERUM.COM <span>The air remembers.</span></p>
-              <span className="tape tape-bottom" aria-hidden="true" />
-            </article>
-            <div className="color-strip" aria-label="Campaign color control strip">{campaignColors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
-            {pendingProposal && <PlacementProjection proposal={pendingProposal} placement={pendingPlacement} />}
-            {placedProposalItem && <PlacementProjection proposal={snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin')!} placement={pendingPlacement} item={placedProposalItem} />}
+            <div className="board-overlay-world" style={{ transform: `translate(${boardViewport.x}px, ${boardViewport.y}px) scale(${boardViewport.scale})` }}>
+              <div className="registration registration-a" aria-hidden="true" /><div className="registration registration-b" aria-hidden="true" />
+              <article className="poster-proof">
+                <span className="tape tape-top" aria-hidden="true" />
+                <p className="poster-brand">ITERUM</p><p className="poster-campaign">Static bloom</p>
+                <h2 style={{ fontFamily: fontFamilyFor(snapshot.typeDirection?.headline) }}>The air re-<br />members.</h2>
+                <img src="/assets/ref-resin-iris.webp" alt="Crushed iris in resin campaign proof" />
+                <p className="poster-notes">ozone<br />crushed iris<br />mineral rain<br />warm concrete<br />skin</p>
+                <p className="poster-footer">ITERUM.COM <span>The air remembers.</span></p>
+                <span className="tape tape-bottom" aria-hidden="true" />
+              </article>
+              <div className="color-strip" aria-label="Campaign color control strip">{campaignColors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</div>
+              {pendingProposal && <PlacementProjection proposal={pendingProposal} placement={pendingPlacement} />}
+              {placedProposalItem && <PlacementProjection proposal={snapshot.proposals.find((proposal) => proposal.id === 'proposal-resin')!} placement={pendingPlacement} item={placedProposalItem} />}
+            </div>
           </section>
           <BoardOutline snapshot={snapshot} runtime={workspaceRuntime} selectedId={selectedBoardItemId} onSelect={selectBoardItem} />
           <ActionReceipt receipt={snapshot.receipts[0]} runtime={workspaceRuntime} />

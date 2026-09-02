@@ -62,7 +62,8 @@ export interface Campaign {
 export interface BoardItem {
   id: string
   title: string
-  kind: 'reference' | 'agent-addition'
+  kind: 'reference' | 'agent-addition' | 'type-specimen'
+  typeRole?: 'headline' | 'body'
   imageUrl?: string
   sourceUrl?: string
   attribution?: string

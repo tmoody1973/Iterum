@@ -9,6 +9,7 @@ import type { BoardItem, WorkspaceState } from '../../lib/domain/types'
 const STEP = 10
 
 function sourceLabel(item: BoardItem) {
+  if (item.kind === 'type-specimen') return item.attribution ?? 'Approved Iterum type direction'
   return item.sourceUrl === 'local-demo' ? 'Iterum synthetic reference' : item.sourceUrl ?? 'Unrecorded source'
 }
 

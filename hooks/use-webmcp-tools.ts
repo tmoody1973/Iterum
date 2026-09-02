@@ -12,7 +12,12 @@ export function useWebMcpTools(runtime: WorkspaceRuntime) {
     const controller = new AbortController()
     if (!document.modelContext) { setStatus('preview'); return () => controller.abort() }
     let active = true
-    registerIterumTools(runtime, controller).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
+    const viewportController = {
+      getViewport: () => useUiStore.getState().boardViewport,
+      getViewportSize: () => useUiStore.getState().boardViewportSize,
+      setViewport: (viewport: ReturnType<typeof useUiStore.getState>['boardViewport'], mode: 'fit' | 'custom' = 'custom') => useUiStore.getState().setBoardViewport(viewport, mode),
+    }
+    registerIterumTools(runtime, controller, viewportController).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
     return () => { active = false; controller.abort() }
   }, [runtime, setStatus])
 }

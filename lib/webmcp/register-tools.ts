@@ -1,4 +1,5 @@
 import type { WebMCPTool } from '../../types/webmcp'
+import { boundsForItems, fitBounds, itemIntersectsBounds, visibleWorldBounds, viewportCenter, viewportFromCenter, type BoardViewportController } from '../board/viewport'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
 import type { Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
@@ -66,13 +67,77 @@ async function responseJson(response: Response) {
   return payload
 }
 
-export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController()): Promise<RegisteredTools | null> {
+function viewportPayload(state: WorkspaceState, controller: BoardViewportController) {
+  const viewport = controller.getViewport()
+  const size = controller.getViewportSize()
+  const bounds = boundsForItems(state.boardItems, true)
+  const visibleBounds = visibleWorldBounds(viewport, size)
+  const visibleItems = state.boardItems.filter((item) => itemIntersectsBounds(item, visibleBounds)).map((item) => ({ id: item.id, title: item.title, kind: item.kind, territory: item.territory }))
+  return { zoom: viewport.scale, center: viewportCenter(viewport, size), bounds, visibleBounds, visibleItems }
+}
+
+function viewportAvailable(controller: BoardViewportController | undefined): controller is BoardViewportController {
+  if (!controller) return false
+  const size = controller.getViewportSize()
+  return Number.isFinite(size.width) && Number.isFinite(size.height) && size.width > 0 && size.height > 0
+}
+
+export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController(), viewportController?: BoardViewportController): Promise<RegisteredTools | null> {
   if (!document.modelContext) return null
   const tools: WebMCPTool[] = [
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8) }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+    },
+    {
+      name: 'get_board_viewport', title: 'Read the board viewport', description: 'Read the current presentation-only board zoom, center, mechanical bounds, visible world bounds, and visible items without changing the canonical board.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
+        if (!viewportAvailable(viewportController)) return failure(state, 'VIEWPORT_UNAVAILABLE', 'The board viewport is not mounted yet.', true)
+        return success(state, viewportPayload(state, viewportController), `Read the board viewport at ${Math.round(viewportController.getViewport().scale * 100)}%.`)
+      },
+    },
+    {
+      name: 'focus_board_items', title: 'Focus board items', description: 'Frame one or more current board items, or every item in a named territory. This changes only the local presentation viewport.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, itemIds: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, maxItems: 24 }, territory: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'itemIds', 'territory']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || (input.itemIds !== undefined && (!Array.isArray(input.itemIds) || input.itemIds.length < 1 || input.itemIds.length > 24 || !input.itemIds.every((id) => typeof id === 'string' && id.length > 0))) || (input.territory !== undefined && (typeof input.territory !== 'string' || !input.territory.trim() || input.territory.length > 80)) || (input.itemIds === undefined && input.territory === undefined)) return invalid(state, 'Provide the open campaign and at least one board item ID or one territory.')
+        if (!viewportAvailable(viewportController)) return failure(state, 'VIEWPORT_UNAVAILABLE', 'The board viewport is not mounted yet.', true)
+        const ids = new Set(Array.isArray(input.itemIds) ? input.itemIds.map(String) : [])
+        const territory = typeof input.territory === 'string' ? input.territory.trim().toLocaleLowerCase() : ''
+        const targets = state.boardItems.filter((item) => ids.has(item.id) || Boolean(territory && item.territory.toLocaleLowerCase() === territory))
+        if (targets.length === 0) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'No current board items match that focus request.')
+        viewportController.setViewport(fitBounds(boundsForItems(targets), viewportController.getViewportSize(), 64), 'custom')
+        return success(state, { focusedItems: targets.map((item) => ({ id: item.id, title: item.title, territory: item.territory })), viewport: viewportPayload(state, viewportController) }, `Framed ${targets.length} board item${targets.length === 1 ? '' : 's'}.`, undefined, true)
+      },
+    },
+    {
+      name: 'set_board_viewport', title: 'Set the board viewport', description: 'Set a bounded local board zoom and world-space center. This does not change board content, version, or action receipts.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, zoom: { type: 'number', minimum: .25, maximum: 3 }, center: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false } }, required: ['campaignId', 'boardId', 'zoom', 'center'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'zoom', 'center']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.zoom !== 'number' || !Number.isFinite(input.zoom) || input.zoom < .25 || input.zoom > 3 || !finitePoint(input.center)) return invalid(state, 'Provide the open campaign, a zoom from 0.25–3, and a finite world-space center.')
+        if (!viewportAvailable(viewportController)) return failure(state, 'VIEWPORT_UNAVAILABLE', 'The board viewport is not mounted yet.', true)
+        const bounds = boundsForItems(state.boardItems, true)
+        const center = { x: Math.min(bounds.x + bounds.width, Math.max(bounds.x, input.center.x)), y: Math.min(bounds.y + bounds.height, Math.max(bounds.y, input.center.y)) }
+        viewportController.setViewport(viewportFromCenter(center, input.zoom, viewportController.getViewportSize()), 'custom')
+        return success(state, viewportPayload(state, viewportController), `Set the board viewport to ${Math.round(input.zoom * 100)}%.`, undefined, true)
+      },
+    },
+    {
+      name: 'reset_board_viewport', title: 'Fit the board', description: 'Return the local presentation viewport to Fit Board without changing canonical board data.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
+        if (!viewportAvailable(viewportController)) return failure(state, 'VIEWPORT_UNAVAILABLE', 'The board viewport is not mounted yet.', true)
+        viewportController.setViewport(fitBounds(boundsForItems(state.boardItems, true), viewportController.getViewportSize()), 'fit')
+        return success(state, viewportPayload(state, viewportController), 'Fit the full board in the current viewport.', undefined, true)
+      },
     },
     {
       name: 'search_reference_library', title: 'Search the reference library', description: 'Search current board references and pending proposals by title, source, territory, provider, approved tags, or pending tag suggestions without making changes.',
@@ -84,7 +149,7 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
         const tags = Array.isArray(input.tags) ? input.tags.map((tag) => String(tag).trim().toLocaleLowerCase()) : []
         const scope = input.scope ?? 'all'
         const references = [
-          ...state.boardItems.map((item) => ({ id: item.id, type: 'board-item' as const, state: 'on-board' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.territory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
+          ...state.boardItems.filter((item) => item.kind !== 'type-specimen').map((item) => ({ id: item.id, type: 'board-item' as const, state: 'on-board' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.territory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
           ...state.proposals.filter((item) => item.status === 'pending').map((item) => ({ id: item.id, type: 'proposal' as const, state: 'in-review' as const, title: item.title, sourceUrl: item.sourceUrl, attribution: item.attribution, territory: item.intendedTerritory, provider: item.captureProvider, tags: item.tags ?? [], pendingTagSuggestions: (item.tagSuggestions ?? []).filter((suggestion) => suggestion.status === 'pending') })),
         ]
         const matches = references.filter((reference) => {

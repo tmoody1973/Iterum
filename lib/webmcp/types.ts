@@ -29,6 +29,6 @@ export function failure(state: WorkspaceState, code: string, message: string, re
   return { ok: false, schemaVersion: '1.0', campaignId: state.campaign.id, boardId: state.campaign.boardId, boardVersion: state.version, error: { code, message, retryable, details } }
 }
 
-export function success<T>(state: WorkspaceState, data: T, summary: string, receipt?: ActionReceipt): ToolSuccess<T> {
-  return { ok: true, schemaVersion: '1.0', campaignId: state.campaign.id, boardId: state.campaign.boardId, boardVersion: state.version, receipt, data, summary, ui: { updated: Boolean(receipt) } }
+export function success<T>(state: WorkspaceState, data: T, summary: string, receipt?: ActionReceipt, uiUpdated = Boolean(receipt)): ToolSuccess<T> {
+  return { ok: true, schemaVersion: '1.0', campaignId: state.campaign.id, boardId: state.campaign.boardId, boardVersion: state.version, receipt, data, summary, ui: { updated: uiUpdated } }
 }
