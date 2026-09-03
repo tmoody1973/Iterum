@@ -101,7 +101,7 @@ test('previews and atomically applies a WebMCP Direction Draft at the designer b
   })
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(40)
 
   const proposed = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
@@ -182,7 +182,7 @@ test('runs the board-organization WebMCP tool chain while reserving approval for
   })
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.goto('/')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(40)
 
   const result = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
@@ -285,7 +285,7 @@ test('composes a reviewable creative territory through WebMCP and leaves approva
   })
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.goto('/')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(40)
 
   const result = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools

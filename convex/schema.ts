@@ -70,4 +70,56 @@ export default defineSchema({
   })
     .index('by_project', ['projectId'])
     .index('by_project_and_created_at', ['projectId', 'createdAt']),
+
+  imageGenerationRuns: defineTable({
+    projectId: v.id('projects'),
+    runKey: v.string(),
+    idempotencyKey: v.string(),
+    requestHash: v.string(),
+    operation: v.union(v.literal('generate-candidates'), v.literal('edit-candidate'), v.literal('generate-applications')),
+    status: v.union(v.literal('running'), v.literal('generated'), v.literal('awaiting-review'), v.literal('failed')),
+    model: v.literal('gpt-image-2'),
+    quality: v.union(v.literal('low'), v.literal('medium'), v.literal('high')),
+    territoryId: v.string(),
+    purpose: v.string(),
+    prompt: v.string(),
+    preserve: v.array(v.string()),
+    avoid: v.array(v.string()),
+    referenceItemIds: v.array(v.string()),
+    outputSpecs: v.any(),
+    costQuote: v.any(),
+    boardVersionBefore: v.number(),
+    boardVersionAfter: v.optional(v.number()),
+    proposalIds: v.array(v.string()),
+    outputs: v.any(),
+    requestId: v.optional(v.string()),
+    error: v.optional(v.any()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_project_and_run_key', ['projectId', 'runKey'])
+    .index('by_project_and_idempotency', ['projectId', 'idempotencyKey'])
+    .index('by_project_and_created_at', ['projectId', 'createdAt']),
+
+  generatedImageAssets: defineTable({
+    projectId: v.id('projects'),
+    runId: v.id('imageGenerationRuns'),
+    assetKey: v.string(),
+    parentAssetKey: v.optional(v.string()),
+    version: v.number(),
+    label: v.string(),
+    storageId: v.id('_storage'),
+    imageUrl: v.string(),
+    mediaType: v.literal('image/webp'),
+    width: v.number(),
+    height: v.number(),
+    purpose: v.string(),
+    applicationFormat: v.optional(v.union(v.literal('poster-4:5'), v.literal('story-9:16'), v.literal('landing-hero-16:9'), v.literal('square-1:1'))),
+    model: v.literal('gpt-image-2'),
+    prompt: v.string(),
+    referenceItemIds: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_project_and_asset_key', ['projectId', 'assetKey'])
+    .index('by_project_and_created_at', ['projectId', 'createdAt']),
 })

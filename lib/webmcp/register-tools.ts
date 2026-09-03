@@ -9,6 +9,7 @@ import { isolateImageBackground } from '../image/isolate-background'
 import type { ProjectController } from '../persistence/project-controller'
 import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
+import { createImageGenerationTools } from './register-image-generation-tools'
 
 const requiredMutation = ['campaignId', 'boardId', 'expectedBoardVersion', 'idempotencyKey']
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -194,7 +195,7 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, creativeRoutes: state.creativeRoutes, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, layoutProposals: state.layoutProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8), persistence: projectController ? projectController.getStatus() : null, productBoundary: projectController ? 'Convex cloud persistence, autosave, immutable snapshots, and recovery are active. Generated applications and presentation export remain future work.' : 'This fixture is intentionally session-only. Open a cloud project for persistence and recovery.' }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, creativeRoutes: state.creativeRoutes, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, layoutProposals: state.layoutProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8), persistence: projectController ? projectController.getStatus() : null, imageGeneration: projectController?.imageGeneration ? { model: 'gpt-image-2', tools: ['generate_image_candidates', 'edit_image_candidate', 'generate_campaign_applications', 'get_image_generation_run'], approvalBoundary: 'Every generated output enters Review before it can become board content.' } : null, productBoundary: projectController ? 'Convex cloud persistence, autosave, immutable snapshots, recovery, and review-first image generation are active. Presentation export remains future work.' : 'This fixture is intentionally session-only. Open a cloud project for persistence and recovery.' }, `Read ${state.campaign.name} at board version ${state.version}.`) },
     },
     {
       name: 'update_campaign_brief', title: 'Structure the campaign brief', description: 'Update the current draft brief with explicit objective, audience, proposition, tone, mandatories, anti-directions, and schedule. A locked brief cannot be changed.',
@@ -707,6 +708,7 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       },
     },
   )
+  if (projectController?.imageGeneration) tools.push(...createImageGenerationTools(runtime, projectController, reviewUi))
   try { for (const tool of tools) await document.modelContext.registerTool(tool, { signal: controller.signal }) } catch (error) { controller.abort(); throw error }
   return { controller, count: tools.length }
 }

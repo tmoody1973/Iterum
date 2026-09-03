@@ -67,7 +67,7 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
         {pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposalPlacement} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposalPlacement)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} onIsolate={() => isolateProposal(proposal)} onRestore={() => restoreProposal(proposal)} isIsolating={isolatingId === proposal.id} />)}
       </div> : <p className="activity-empty">No pending proposals. Use research to add sourced references or compose a reviewable Direction Draft.</p>}
     </> : activeRightTab === 'capture' ? <ReferenceCapturePanel snapshot={snapshot} runtime={runtime} onProposed={() => setActiveRightTab('review')} /> : activeRightTab === 'library' ? <ReferenceLibrary snapshot={snapshot} runtime={runtime} /> : <div className="activity-log">{snapshot.receipts.length ? snapshot.receipts.map((receipt) => <p key={receipt.id}><strong>V{String(receipt.version).padStart(2, '0')}</strong> {receipt.summary}</p>) : <p className="activity-empty">No agent activity has changed this mechanical.</p>}</div>}
-    <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references, creative routes, and Direction Draft arrangements stay in review until you approve them.</p></section>
+    <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references, generated image studies, creative routes, and Direction Draft arrangements stay in review until you approve them.</p></section>
     <footer><LockKeyhole aria-hidden="true" />Designer review control</footer>
   </aside>
 }

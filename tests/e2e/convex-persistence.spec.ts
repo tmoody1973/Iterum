@@ -19,7 +19,7 @@ test('creates a blank cloud campaign, autosaves, reloads, snapshots, and restore
   await expect(page).toHaveURL(/\/projects\/[a-z0-9-]+$/)
   const reviewUrl = page.url()
   await expect(page.getByText('Cloud · ready', { exact: true })).toBeVisible()
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(47)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(51)
 
   const firstSave = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
@@ -51,7 +51,7 @@ test('creates a blank cloud campaign, autosaves, reloads, snapshots, and restore
   await expect(page.getByText('Cloud · saved', { exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('Working line')).toHaveValue('Direction one survives reload.')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(47)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(51)
 
   const checkpoint = await page.evaluate(async ({ campaignId, boardId }) => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools

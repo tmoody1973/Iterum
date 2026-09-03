@@ -1,12 +1,13 @@
 'use client'
 
-import { useConvex, useMutation, useQuery } from 'convex/react'
+import { useAction, useConvex, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
 import { createBlankCampaignState, createProjectKey } from '../lib/domain/blank-campaign'
 import type { WorkspaceState } from '../lib/domain/types'
+import type { ImageGenerationRun } from '../lib/image-generation/types'
 import { createWorkspaceRuntime, type WorkspaceRuntime } from '../lib/domain/workspace-runtime'
 import { toProjectSummary, type CreateProjectInput, type ProjectController, type ProjectSaveStatus, type ProjectVersionSummary } from '../lib/persistence/project-controller'
 
@@ -27,6 +28,8 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
   const saveWorkspace = useMutation(api.projects.saveWorkspace)
   const createVersionMutation = useMutation(api.projects.createVersion)
   const restoreVersionMutation = useMutation(api.projects.restoreVersion)
+  const executeImageGeneration = useAction(api.imageGeneration.execute)
+  const markImageGenerationReview = useMutation(api.imageGeneration.markAwaitingReview)
   const [status, setStatus] = useState<ProjectSaveStatus>({ phase: 'loading', projectKey, headRevision: null, savedWorkspaceVersion: null, lastSavedAt: null, message: 'Opening cloud project…' })
   const statusRef = useRef(status)
   const hydratedRef = useRef(false)
@@ -141,7 +144,19 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
       publishStatus(nextStatus)
       return { state: nextState, status: nextStatus }
     },
-  }), [convex, createVersionMutation, flush, projectKey, publishStatus, restoreVersionMutation, runtime])
+    imageGeneration: {
+      execute: async (input) => {
+        await flush()
+        return await executeImageGeneration({ projectKey, ...input })
+      },
+      markAwaitingReview: async (runKey, proposalIds, boardVersionAfter) => {
+        const run = await markImageGenerationReview({ projectKey, runKey, proposalIds, boardVersionAfter })
+        await flush()
+        return run as ImageGenerationRun
+      },
+      getRun: async (runKey) => await convex.query(api.imageGeneration.getRun, { projectKey, runKey }) as ImageGenerationRun | null,
+    },
+  }), [convex, createVersionMutation, executeImageGeneration, flush, markImageGenerationReview, projectKey, publishStatus, restoreVersionMutation, runtime])
 
   return { runtime, project: remoteProject, status, controller, isReady: hydratedRef.current && remoteProject !== null && remoteProject !== undefined }
 }

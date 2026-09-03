@@ -2,7 +2,7 @@ export type Actor = 'designer' | 'agent' | 'system'
 
 export type Point = { x: number; y: number }
 export type CropRect = { x: number; y: number; width: number; height: number }
-export type CaptureProvider = 'microlink' | 'pexels' | 'manual' | 'web-clipper'
+export type CaptureProvider = 'microlink' | 'pexels' | 'manual' | 'web-clipper' | 'openai-image'
 export type ReferenceTargetType = 'proposal' | 'board-item'
 export type TagSuggestionStatus = 'pending' | 'approved' | 'rejected'
 export type TypefaceSource = 'fontsource' | 'google-fonts' | 'commercial-reference'
@@ -106,6 +106,7 @@ export interface BoardItem {
   originalImageUrl?: string
   tags?: string[]
   tagSuggestions?: TagSuggestion[]
+  generation?: GeneratedImageLineage
   territory: string
   position: Point
   width: number
@@ -247,7 +248,25 @@ export interface Proposal {
   isolation?: ImageIsolation
   tags?: string[]
   tagSuggestions?: TagSuggestion[]
+  generation?: GeneratedImageLineage
   status: ProposalStatus
+}
+
+export interface GeneratedImageLineage {
+  origin: 'generated'
+  runKey: string
+  assetKey: string
+  parentAssetKey?: string
+  version: number
+  model: 'gpt-image-2'
+  prompt: string
+  purpose: string
+  referenceItemIds: string[]
+  width: number
+  height: number
+  createdAt: number
+  applicationFormat?: 'poster-4:5' | 'story-9:16' | 'landing-hero-16:9' | 'square-1:1'
+  rasterTextCanonical: false
 }
 
 export interface PlacementPolicy {

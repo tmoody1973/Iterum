@@ -1,4 +1,5 @@
 import type { WorkspaceState } from '../domain/types'
+import type { ImageGenerationController } from '../image-generation/types'
 
 export type ProjectSavePhase = 'loading' | 'ready' | 'saving' | 'saved' | 'conflict' | 'error'
 
@@ -52,6 +53,7 @@ export interface ProjectController extends ProjectCatalogController {
   createVersion(label: string, actor: 'designer' | 'agent', idempotencyKey: string): Promise<ProjectVersionSummary>
   listVersions(): Promise<ProjectVersionSummary[]>
   restoreVersion(versionId: string, actor: 'designer' | 'agent', idempotencyKey: string): Promise<{ state: WorkspaceState; status: ProjectSaveStatus }>
+  imageGeneration?: ImageGenerationController
 }
 
 export function toProjectSummary(project: {

@@ -92,6 +92,7 @@ function placementForProposal(proposal: Proposal, id: string, position: Point): 
     sourceProposalId: proposal.id, crop: proposal.crop, captureProvider: proposal.captureProvider,
     isolation: proposal.isolation, originalImageUrl: proposal.isolation ? proposal.imageUrl : undefined,
     tags: proposal.tags ?? [], tagSuggestions: [],
+    generation: proposal.generation,
     territory: proposal.intendedTerritory, position, width: 224, height: 286, locked: false,
   }
 }

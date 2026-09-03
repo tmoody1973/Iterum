@@ -10,6 +10,8 @@
 
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as imageGeneration from "../imageGeneration.js";
+import type * as imageGenerationInternal from "../imageGenerationInternal.js";
 import type * as projects from "../projects.js";
 
 import type {
@@ -21,6 +23,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  imageGeneration: typeof imageGeneration;
+  imageGenerationInternal: typeof imageGenerationInternal;
   projects: typeof projects;
 }>;
 
