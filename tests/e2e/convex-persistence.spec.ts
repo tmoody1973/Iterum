@@ -1,11 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-test('creates a blank cloud campaign, autosaves, reloads, snapshots, and restores a new head', async ({ page }) => {
+async function installWebMcpRegistry(page: Page) {
   await page.addInitScript(() => {
     const toolRegistry: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => unknown }> = {}
     ;(window as typeof window & { __iterumTools?: typeof toolRegistry }).__iterumTools = toolRegistry
     Object.defineProperty(document, 'modelContext', { configurable: true, value: { registerTool: async (tool: { name: string; execute: typeof toolRegistry[string]['execute'] }) => { toolRegistry[tool.name] = tool } } })
   })
+}
+
+test('creates a blank cloud campaign, autosaves, reloads, snapshots, and restores a new head', async ({ page }) => {
+  await installWebMcpRegistry(page)
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.goto('/projects')
   const campaignName = `Cloud proof ${Date.now()}`
@@ -76,4 +80,38 @@ test('creates a blank cloud campaign, autosaves, reloads, snapshots, and restore
   await expect(page.getByLabel('Working line')).toHaveValue('Direction one survives reload.')
   await expect(page.getByText('Cloud · ready', { exact: true })).toBeVisible()
   console.log(`CLOUD_PROJECT_REVIEW_URL=${reviewUrl}`)
+})
+
+test('keeps one designer session from listing or opening another session’s project', async ({ browser, page }) => {
+  await installWebMcpRegistry(page)
+  await page.goto('/projects')
+  await expect(page.getByText('WebMCP ready', { exact: true })).toBeVisible()
+
+  const campaignName = `Private direction ${Date.now()}`
+  await page.getByLabel('Campaign name').fill(campaignName)
+  await page.getByLabel('Objective').fill('Verify that campaign projects remain private to their designer session.')
+  await page.getByRole('button', { name: 'Create blank project' }).click()
+  await expect(page).toHaveURL(/\/projects\/[a-z0-9-]+$/)
+  const privateProjectUrl = page.url()
+  const privateProjectKey = new URL(privateProjectUrl).pathname.split('/').at(-1)!
+  await expect(page.getByText('Cloud · ready', { exact: true })).toBeVisible()
+
+  const secondContext = await browser.newContext()
+  const secondPage = await secondContext.newPage()
+  await installWebMcpRegistry(secondPage)
+  await secondPage.goto('/projects')
+  await expect(secondPage.getByText('WebMCP ready', { exact: true })).toBeVisible()
+  await expect.poll(() => secondPage.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(3)
+
+  const visibleProjectKeys = await secondPage.evaluate(async () => {
+    const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
+    const response = await tools.list_campaign_projects.execute({}, { signal: new AbortController().signal }) as { data: { projects: Array<{ projectKey: string }> } }
+    return response.data.projects.map((project) => project.projectKey)
+  })
+  expect(visibleProjectKeys).not.toContain(privateProjectKey)
+
+  await secondPage.goto(privateProjectUrl)
+  await expect(secondPage.getByRole('heading', { name: 'Project unavailable' })).toBeVisible()
+  await expect(secondPage.getByText('Project not found.', { exact: true })).toBeVisible()
+  await secondContext.close()
 })

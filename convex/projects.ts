@@ -1,8 +1,19 @@
 import { ConvexError, v } from 'convex/values'
+import { getAuthUserId } from '@convex-dev/auth/server'
 
-import { mutation, query } from './_generated/server'
+import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server'
 
 const actor = v.union(v.literal('designer'), v.literal('agent'), v.literal('system'))
+
+async function requireUser(ctx: QueryCtx | MutationCtx) {
+  const userId = await getAuthUserId(ctx)
+  if (!userId) throw new ConvexError({ code: 'UNAUTHENTICATED', message: 'Open a private designer session before accessing cloud projects.' })
+  return userId
+}
+
+function assertOwner(project: { ownerId?: string }, userId: string) {
+  if (project.ownerId !== userId) throw new ConvexError({ code: 'FORBIDDEN', message: 'This project belongs to another designer.' })
+}
 
 function assertProjectKey(projectKey: string) {
   if (!/^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(projectKey)) {
@@ -34,7 +45,8 @@ function cleanLabel(label: string) {
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const projects = await ctx.db.query('projects').withIndex('by_updated_at').order('desc').take(50)
+    const userId = await requireUser(ctx)
+    const projects = await ctx.db.query('projects').withIndex('by_owner_and_updated_at', (q) => q.eq('ownerId', userId)).order('desc').take(50)
     return projects.map((project) => ({
       id: project._id,
       projectKey: project.projectKey,
@@ -53,7 +65,10 @@ export const get = query({
   args: { projectKey: v.string() },
   handler: async (ctx, args) => {
     assertProjectKey(args.projectKey)
-    return await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
+    const userId = await requireUser(ctx)
+    const project = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
+    if (!project || project.ownerId !== userId) return null
+    return project
   },
 })
 
@@ -62,13 +77,18 @@ export const ensure = mutation({
   handler: async (ctx, args) => {
     assertProjectKey(args.projectKey)
     assertWorkspace(args.workspace)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
-    if (existing) return existing
+    if (existing) {
+      assertOwner(existing, userId)
+      return existing
+    }
 
     const now = Date.now()
     const name = args.name.trim()
     if (!name || name.length > 120) throw new ConvexError({ code: 'INVALID_PROJECT_NAME', message: 'Project names must contain 1–120 characters.' })
     const projectId = await ctx.db.insert('projects', {
+      ownerId: userId,
       projectKey: args.projectKey,
       name,
       campaignId: args.workspace.campaign.id,
@@ -107,8 +127,10 @@ export const saveWorkspace = mutation({
   handler: async (ctx, args) => {
     assertProjectKey(args.projectKey)
     assertWorkspace(args.workspace)
+    const userId = await requireUser(ctx)
     const project = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
     if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND', message: 'The project no longer exists.' })
+    assertOwner(project, userId)
     if (project.lastSaveKey === args.idempotencyKey) return project
     if (project.headRevision !== args.expectedHeadRevision) {
       throw new ConvexError({ code: 'HEAD_CONFLICT', message: 'The project changed elsewhere. Reload or restore before saving.', expectedHeadRevision: args.expectedHeadRevision, actualHeadRevision: project.headRevision })
@@ -133,8 +155,10 @@ export const saveWorkspace = mutation({
 export const createVersion = mutation({
   args: { projectKey: v.string(), expectedHeadRevision: v.number(), label: v.string(), actor, idempotencyKey: v.string() },
   handler: async (ctx, args) => {
+    const userId = await requireUser(ctx)
     const project = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
     if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND', message: 'The project no longer exists.' })
+    assertOwner(project, userId)
     if (project.lastSnapshotKey === args.idempotencyKey) {
       return await ctx.db.query('boardVersions').withIndex('by_project_and_idempotency', (q) => q.eq('projectId', project._id).eq('idempotencyKey', args.idempotencyKey)).unique()
     }
@@ -159,8 +183,10 @@ export const createVersion = mutation({
 export const listVersions = query({
   args: { projectKey: v.string() },
   handler: async (ctx, args) => {
+    const userId = await requireUser(ctx)
     const project = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
     if (!project) return []
+    assertOwner(project, userId)
     const versions = await ctx.db.query('boardVersions').withIndex('by_project_and_created_at', (q) => q.eq('projectId', project._id)).order('desc').take(50)
     return versions.map((version) => ({ id: version._id, label: version.label, kind: version.kind, actor: version.actor, workspaceVersion: version.workspaceVersion, headRevision: version.headRevision, createdAt: version.createdAt }))
   },
@@ -169,8 +195,10 @@ export const listVersions = query({
 export const restoreVersion = mutation({
   args: { projectKey: v.string(), versionId: v.id('boardVersions'), expectedHeadRevision: v.number(), actor, idempotencyKey: v.string() },
   handler: async (ctx, args) => {
+    const userId = await requireUser(ctx)
     const project = await ctx.db.query('projects').withIndex('by_project_key', (q) => q.eq('projectKey', args.projectKey)).unique()
     if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND', message: 'The project no longer exists.' })
+    assertOwner(project, userId)
     if (project.lastSaveKey === args.idempotencyKey) return project
     if (project.headRevision !== args.expectedHeadRevision) throw new ConvexError({ code: 'HEAD_CONFLICT', message: 'The project changed elsewhere. Refresh versions before restoring.' })
     const source = await ctx.db.get(args.versionId)

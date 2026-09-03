@@ -1,19 +1,35 @@
 'use client'
 
-import { useMutation, useQuery } from 'convex/react'
+import { useConvex, useQuery } from 'convex/react'
 import { ArrowRight, Cloud, Plus } from 'lucide-react'
-import { FormEvent, useState } from 'react'
+import { FormEvent, useMemo, useState } from 'react'
 
 import { api } from '../../convex/_generated/api'
+import { useProjectCatalogTools } from '../../hooks/use-project-catalog-tools'
 import { createBlankCampaignState, createProjectKey } from '../../lib/domain/blank-campaign'
+import { toProjectSummary, type ProjectCatalogController } from '../../lib/persistence/project-controller'
+import { WebMcpStatus } from '../webmcp-status'
 
 export function ProjectsDashboard() {
   const projects = useQuery(api.projects.list, {})
-  const ensureProject = useMutation(api.projects.ensure)
+  const convex = useConvex()
   const [name, setName] = useState('')
   const [objective, setObjective] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const projectController = useMemo<ProjectCatalogController>(() => ({
+    listProjects: async () => (await convex.query(api.projects.list, {})).map(toProjectSummary),
+    createProject: async (input) => {
+      const projectKey = input.projectKey ?? createProjectKey(input.name)
+      const workspace = createBlankCampaignState(input.name, input.objective)
+      const project = await convex.mutation(api.projects.ensure, { projectKey, name: input.name, workspace, idempotencyKey: input.idempotencyKey })
+      if (!project) throw new Error('Convex did not return the created project.')
+      return toProjectSummary(project)
+    },
+    openProject: (projectKey) => { window.location.assign(`/projects/${encodeURIComponent(projectKey)}`) },
+  }), [convex])
+  useProjectCatalogTools(projectController)
 
   const createProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -22,10 +38,8 @@ export function ProjectsDashboard() {
     if (!cleanName || !cleanObjective || busy) return
     setBusy(true); setMessage('Creating blank cloud project…')
     try {
-      const projectKey = createProjectKey(cleanName)
-      const workspace = createBlankCampaignState(cleanName, cleanObjective)
-      await ensureProject({ projectKey, name: cleanName, workspace, idempotencyKey: crypto.randomUUID() })
-      window.location.assign(`/projects/${encodeURIComponent(projectKey)}`)
+      const project = await projectController.createProject({ name: cleanName, objective: cleanObjective, idempotencyKey: crypto.randomUUID() })
+      projectController.openProject(project.projectKey)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'The project could not be created.')
       setBusy(false)
@@ -33,7 +47,7 @@ export function ProjectsDashboard() {
   }
 
   return <main className="projects-page">
-    <header className="projects-heading"><div><p>Iterum / Cloud projects</p><h1>Campaign directions</h1></div><span><Cloud aria-hidden="true" />Convex connected</span></header>
+    <header className="projects-heading"><div><p>Iterum / Cloud projects</p><h1>Campaign directions</h1></div><div className="projects-heading-status"><WebMcpStatus /><span><Cloud aria-hidden="true" />Private cloud connected</span></div></header>
     <div className="projects-grid">
       <section className="new-project-card" aria-labelledby="new-project-title">
         <p className="projects-index">01 / Start clean</p>

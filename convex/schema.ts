@@ -1,8 +1,12 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import { authTables } from '@convex-dev/auth/server'
 
 export default defineSchema({
+  ...authTables,
   projects: defineTable({
+    // Optional only while pre-authentication projects are claimed by their first owner.
+    ownerId: v.optional(v.id('users')),
     projectKey: v.string(),
     name: v.string(),
     campaignId: v.string(),
@@ -17,6 +21,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_project_key', ['projectKey'])
+    .index('by_owner_and_updated_at', ['ownerId', 'updatedAt'])
     .index('by_updated_at', ['updatedAt']),
 
   boardVersions: defineTable({

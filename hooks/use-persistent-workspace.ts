@@ -8,29 +8,12 @@ import type { Id } from '../convex/_generated/dataModel'
 import { createBlankCampaignState, createProjectKey } from '../lib/domain/blank-campaign'
 import type { WorkspaceState } from '../lib/domain/types'
 import { createWorkspaceRuntime, type WorkspaceRuntime } from '../lib/domain/workspace-runtime'
-import type { CreateProjectInput, ProjectController, ProjectSaveStatus, ProjectSummary, ProjectVersionSummary } from '../lib/persistence/project-controller'
+import { toProjectSummary, type CreateProjectInput, type ProjectController, type ProjectSaveStatus, type ProjectVersionSummary } from '../lib/persistence/project-controller'
 
 const AUTOSAVE_DELAY_MS = 500
 
 function messageForError(error: unknown) {
   return error instanceof Error ? error.message : 'Convex could not save the project.'
-}
-
-function projectSummary(project: {
-  _id?: string
-  id?: string
-  projectKey: string
-  name: string
-  campaignId: string
-  boardId: string
-  workspaceVersion: number
-  headRevision: number
-  createdAt: number
-  updatedAt: number
-}): ProjectSummary {
-  const id = project._id ?? project.id
-  if (!id) throw new Error('Convex returned a project without an identifier.')
-  return { id, projectKey: project.projectKey, name: project.name, campaignId: project.campaignId, boardId: project.boardId, workspaceVersion: project.workspaceVersion, headRevision: project.headRevision, createdAt: project.createdAt, updatedAt: project.updatedAt }
 }
 
 export function usePersistentWorkspace(projectKey: string, seedState?: WorkspaceState) {
@@ -125,13 +108,13 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
 
   const controller = useMemo<ProjectController>(() => ({
     getStatus: () => statusRef.current,
-    listProjects: async () => (await convex.query(api.projects.list, {})).map(projectSummary),
+    listProjects: async () => (await convex.query(api.projects.list, {})).map(toProjectSummary),
     createProject: async (input: CreateProjectInput) => {
       const key = input.projectKey ?? createProjectKey(input.name)
       const workspace = createBlankCampaignState(input.name, input.objective)
       const project = await convex.mutation(api.projects.ensure, { projectKey: key, name: input.name, workspace, idempotencyKey: input.idempotencyKey })
       if (!project) throw new Error('Convex did not return the created project.')
-      return projectSummary(project)
+      return toProjectSummary(project)
     },
     openProject: (key) => { window.location.assign(`/projects/${encodeURIComponent(key)}`) },
     flush,
