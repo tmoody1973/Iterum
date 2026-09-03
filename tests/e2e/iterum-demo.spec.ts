@@ -26,7 +26,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
   await expect(page.getByRole('complementary', { name: 'Campaign job ticket' })).toBeVisible()
   await expect(page.getByRole('main', { name: 'Working mechanical' })).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Review tray' })).toBeVisible()
-  await expect(page.getByText('7 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
   const mechanical = page.getByRole('main', { name: 'Working mechanical' })
   const preview = page.getByTestId('proposal-placement')
   await expect(preview).toBeVisible()
@@ -42,21 +42,38 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 1280, height: 90
   const destination = await preview.getAttribute('data-placement')
 
   await page.getByRole('button', { name: /approve to floral artifact/i }).click()
-  await expect(page.getByText('8 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('8 items', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Layers' }).click()
   await expect(page.getByRole('button', { name: 'Select Resin iris / violet fracture' })).toBeVisible()
   await expect(preview).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(destination!)
 
   await page.getByRole('button', { name: 'Undo' }).click()
-  await expect(page.getByText('7 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Review tray' })).toContainText('4 pending')
   await expect(page.getByRole('button', { name: /approve to floral artifact/i })).toBeVisible()
   await expect(preview).toHaveClass(/is-preview/)
+  await page.getByRole('button', { name: 'History' }).click()
+  await expect(page.getByRole('complementary', { name: 'History' })).toContainText(/undid: approved resin iris/i)
 })
 
 test('shows the safe Preview state without a model context', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('WebMCP preview', { exact: true })).toBeVisible()
+})
+
+test('offers a stable organized result that a designer can inspect directly', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/organized')
+
+  await expect(page.getByTestId('proposal-placement')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Applied organization proposal')
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toContainText('Hierarchy: hero')
+  await expect(page.getByRole('button', { name: 'Select Body type specimen' })).toContainText('Hierarchy: primary')
+  const lockedReference = page.getByRole('button', { name: 'Select Asymmetrical type study' })
+  await expect(lockedReference).toContainText('Locked')
+  await expect(lockedReference).not.toContainText('Hierarchy:')
 })
 
 test('locks the campaign brief and keeps creative-route approval with the designer', async ({ page }) => {
@@ -84,7 +101,7 @@ test('previews and atomically applies a WebMCP Direction Draft at the designer b
   })
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(32)
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
 
   const proposed = await page.evaluate(async () => {
     const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
@@ -112,19 +129,274 @@ test('previews and atomically applies a WebMCP Direction Draft at the designer b
   const draft = page.getByRole('article', { name: 'Direction Draft: Compressed type pressure' })
   await expect(draft).toBeVisible()
   await expect(draft.getByRole('button', { name: 'Hide preview' })).toBeVisible()
-  await expect(page.getByText('7 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
   await draft.getByRole('button', { name: 'Apply direction' }).click()
-  await expect(page.getByText('8 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('8 items', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Layers' }).click()
   await expect(page.getByRole('button', { name: 'Select Hold the pressure' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/applied direction draft/i)
   await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
-  await expect(page.getByText('7 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
   await expect(draft).toBeVisible()
+})
+
+test('organizes a creative route into reviewable hierarchy without touching its locked reference', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/')
+  const mechanical = page.getByRole('main', { name: 'Working mechanical' })
+  await mechanical.locator('.mechanical-toolbar').getByRole('button', { name: 'Organize' }).click()
+  const studio = page.getByRole('region', { name: 'Organize direction' })
+  await expect(studio.getByLabel('Scope')).toHaveValue('route:route-synthetic')
+  await expect(studio).toContainText('2 items')
+  await expect(studio).toContainText('1 untouched')
+  await studio.getByRole('button', { name: 'Generate preview' }).click()
+
+  const proposal = page.getByRole('article', { name: 'Direction Draft: Organize Synthetic warmth by type' })
+  await expect(proposal).toContainText('Organization preview')
+  await expect(proposal).toContainText(/hero/i)
+  await expect(proposal).toContainText('1 protected item remains untouched')
+  await expect(proposal.getByRole('button', { name: 'Hide preview' })).toBeVisible()
+  await proposal.getByRole('button', { name: 'Apply organization' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Applied organization proposal')
+
+  await page.getByRole('button', { name: 'Layers' }).click()
+  const headline = page.getByRole('button', { name: 'Select Headline type specimen' })
+  await expect(headline).toContainText('Hierarchy: hero')
+  const lockedReference = page.getByRole('button', { name: 'Select Asymmetrical type study' })
+  await expect(lockedReference).not.toContainText('Group: Typography')
+  await expect(lockedReference).toContainText('Locked')
+})
+
+test('runs the board-organization WebMCP tool chain while reserving approval for the designer', async ({ page }) => {
+  await page.addInitScript(() => {
+    const toolRegistry: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => unknown }> = {}
+    ;(window as typeof window & { __iterumTools?: typeof toolRegistry }).__iterumTools = toolRegistry
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        registerTool: async (tool: { name: string; execute: typeof toolRegistry[string]['execute'] }) => {
+          toolRegistry[tool.name] = tool
+        },
+      },
+    })
+  })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/')
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
+
+  const result = await page.evaluate(async () => {
+    const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
+    const context = { signal: new AbortController().signal }
+    const structure = await tools.get_board_structure.execute({
+      campaignId: 'campaign-static-bloom',
+      boardId: 'board-static-bloom',
+    }, context) as { ok: boolean; boardVersion: number; data: { routes: unknown[]; groups: unknown[] } }
+    const proposed = await tools.propose_board_organization.execute({
+      campaignId: 'campaign-static-bloom',
+      boardId: 'board-static-bloom',
+      expectedBoardVersion: structure.boardVersion,
+      idempotencyKey: 'e2e-organize-type-route',
+      organization: {
+        id: 'e2e-organization-tool',
+        title: 'Type pressure hierarchy',
+        scope: { type: 'route', routeId: 'route-synthetic' },
+        strategy: 'type',
+        layout: 'cluster-grid',
+        maximumGroups: 3,
+        ranking: 'visual-weight',
+        briefKeywords: ['severe', 'warm'],
+      },
+    }, context) as { ok: boolean; boardVersion: number; data: { proposalId: string; groups: Array<{ id: string }>; untouchedLockedItemIds: string[]; requiresDesignerApproval: boolean } }
+    const previewed = await tools.preview_board_organization.execute({
+      campaignId: 'campaign-static-bloom',
+      boardId: 'board-static-bloom',
+      proposalId: proposed.data.proposalId,
+    }, context) as { ok: boolean; boardVersion: number; data: { assignments: Array<{ role: string }>; projectedItems: Array<{ id: string; position: { x: number; y: number }; width: number; height: number; hierarchyRole: string; groupId: string }> }; ui: { updated: boolean } }
+    const explained = await tools.explain_board_group.execute({
+      campaignId: 'campaign-static-bloom',
+      boardId: 'board-static-bloom',
+      proposalId: proposed.data.proposalId,
+      groupId: proposed.data.groups[0].id,
+    }, context) as { ok: boolean; data: { assignments: Array<{ itemTitle: string; role: string }> } }
+    return {
+      toolNames: Object.keys(tools),
+      structure,
+      proposed,
+      previewed,
+      explained,
+    }
+  })
+
+  expect(result.toolNames).toEqual(expect.arrayContaining([
+    'get_board_structure',
+    'propose_board_organization',
+    'preview_board_organization',
+    'explain_board_group',
+  ]))
+  expect(result.toolNames).not.toContain('approve_board_organization')
+  expect(result.structure).toMatchObject({ ok: true, boardVersion: 3, data: { groups: [] } })
+  expect(result.structure.data.routes).toHaveLength(3)
+  expect(result.proposed).toMatchObject({
+    ok: true,
+    boardVersion: 4,
+    data: {
+      proposalId: 'e2e-organization-tool',
+      untouchedLockedItemIds: ['reference-type-study'],
+      requiresDesignerApproval: true,
+    },
+  })
+  expect(result.previewed).toMatchObject({ ok: true, boardVersion: 4, ui: { updated: true } })
+  expect(result.previewed.data.assignments.map((assignment) => assignment.role)).toEqual(['hero', 'primary'])
+  expect(result.previewed.data.projectedItems).toEqual([
+    { id: 'type-specimen-headline', position: { x: 800, y: 432 }, width: 256, height: 152, hierarchyRole: 'hero', groupId: 'e2e-organization-tool-group-typography-1' },
+    { id: 'type-specimen-body', position: { x: 832, y: 600 }, width: 224, height: 128, hierarchyRole: 'primary', groupId: 'e2e-organization-tool-group-typography-1' },
+  ])
+  expect(result.explained.ok).toBe(true)
+  expect(result.explained.data.assignments).toEqual(expect.arrayContaining([
+    expect.objectContaining({ itemTitle: 'Headline type specimen', role: 'hero' }),
+  ]))
+
+  const proposal = page.getByRole('article', { name: 'Direction Draft: Type pressure hierarchy' })
+  await expect(proposal).toBeVisible()
+  await expect(proposal).toContainText('Synthetic warmth')
+  await expect(proposal).toContainText('1 protected item remains untouched')
+  await expect(proposal.getByRole('button', { name: 'Hide preview' })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
+
+  await proposal.getByRole('button', { name: 'Apply organization' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Applied organization proposal')
+  await page.getByRole('button', { name: 'Layers' }).click()
+  const headline = page.getByRole('button', { name: 'Select Headline type specimen' })
+  const lockedReference = page.getByRole('button', { name: 'Select Asymmetrical type study' })
+  await expect(headline).toContainText('Hierarchy: hero')
+  await expect(lockedReference).toContainText('Locked')
+  await expect(lockedReference).not.toContainText('Group: Typography')
+
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(headline).not.toContainText('Hierarchy: hero')
+  await expect(proposal).toBeVisible()
+})
+
+test('composes a reviewable creative territory through WebMCP and leaves approval with the designer', async ({ page }) => {
+  await page.addInitScript(() => {
+    const toolRegistry: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => unknown }> = {}
+    ;(window as typeof window & { __iterumTools?: typeof toolRegistry }).__iterumTools = toolRegistry
+    Object.defineProperty(document, 'modelContext', { configurable: true, value: { registerTool: async (tool: { name: string; execute: typeof toolRegistry[string]['execute'] }) => { toolRegistry[tool.name] = tool } } })
+  })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/')
+  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __iterumTools?: Record<string, unknown> }).__iterumTools ?? {}).length)).toBe(37)
+
+  const result = await page.evaluate(async () => {
+    const tools = (window as typeof window & { __iterumTools: Record<string, { execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> }> }).__iterumTools
+    return tools.propose_creative_territory.execute({
+      campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'e2e-compose-territory',
+      territory: {
+        id: 'e2e-territory-afterimage', title: 'Mineral afterimage', routeId: 'route-synthetic',
+        thesis: 'Industrial warmth becomes intimate when severe type presses against preserved floral matter.',
+        mood: 'Tense, tactile, electrically warm', density: 'balanced',
+        groupingSignals: ['material contrast', 'compressed scale', 'sodium warmth'],
+        references: [
+          { itemId: 'reference-type-study', contribution: 'composition', annotation: 'Use its interrupted vertical rhythm and extreme scale, not its wording.' },
+          { itemId: 'reference-resin-iris', contribution: 'materiality', annotation: 'Borrow the preserved surface as the soft counterpoint to severe typography.' },
+        ],
+        hierarchy: { heroItemId: 'type-specimen-headline', primaryItemIds: ['type-specimen-body'], supportingItemIds: [] },
+        typography: { headlineItemId: 'type-specimen-headline', bodyItemId: 'type-specimen-body', relationship: 'Compressed display leads; restrained grotesk carries facts.', scaleRatio: 5 },
+        palette: [
+          { hex: '#171717', name: 'Carbon', role: 'ground' }, { hex: '#E1B86A', name: 'Sodium amber', role: 'accent' },
+          { hex: '#A05040', name: 'Oxide', role: 'support' }, { hex: '#F0ECE4', name: 'Proof paper', role: 'type' },
+        ],
+        relationships: [{ fromItemId: 'reference-type-study', toItemId: 'reference-resin-iris', kind: 'contrast', rationale: 'Rigid type pressure makes the fragile bloom feel stranger.' }],
+        application: { itemId: 'campaign-proof-static-bloom', format: 'Launch poster', caption: 'Tests whether the hierarchy survives as a campaign application.' },
+      },
+    }, { signal: new AbortController().signal })
+  }) as { ok: boolean; boardVersion: number; data: { requiresDesignerApproval: boolean } }
+
+  expect(result).toMatchObject({ ok: true, boardVersion: 4, data: { requiresDesignerApproval: true } })
+  const territory = page.getByRole('article', { name: 'Direction Draft: Mineral afterimage' })
+  await expect(territory).toContainText('Creative territory')
+  await expect(territory).toContainText('Industrial warmth becomes intimate')
+  await expect(territory).toContainText('Hierarchy intent')
+  await expect(territory).toContainText('Hero')
+  await expect(territory).toContainText('Reference contributions')
+  await expect(territory).toContainText('5:1 scale')
+  await expect(territory).toContainText('Campaign palette')
+  await expect(territory).toContainText('Visual relationships')
+  await expect(territory.getByRole('img', { name: 'Launch poster application preview' })).toBeVisible()
+  await territory.getByRole('button', { name: 'Approve territory' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Applied organization proposal')
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toContainText('Hierarchy: hero')
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(territory).toBeVisible()
+})
+
+test('presents a focused creative territory scenario for human review and approval', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/territory-review')
+
+  const reviewTray = page.getByRole('complementary', { name: 'Review tray' })
+  await expect(reviewTray).toBeVisible()
+  await expect(reviewTray).toContainText('1 pending')
+
+  const territory = page.getByRole('article', { name: 'Direction Draft: Mineral afterimage' })
+  await expect(territory).toBeVisible()
+  await expect(territory).toContainText('Creative territory')
+  await expect(territory).toContainText('Industrial warmth becomes intimate')
+  await expect(territory).toContainText('Hierarchy intent')
+  await expect(territory).toContainText('Reference contributions')
+  await expect(territory).toContainText('5:1 scale')
+  await expect(territory).toContainText('Campaign palette')
+  await expect(territory).toContainText('Visual relationships')
+  await expect(territory.getByRole('img', { name: 'Launch poster application preview' })).toBeVisible()
+
+  await territory.getByRole('button', { name: 'Approve territory' }).click()
+  await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText('Applied organization proposal')
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toContainText('Hierarchy: hero')
+  await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(territory).toBeVisible()
+})
+
+test('shows the completed PIVOT campaign using only its newly generated visual system', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/campaign-test')
+  await expect(page.getByRole('heading', { name: 'PIVOT / 01' })).toBeVisible()
+  await expect(page.getByText('Make light move.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('button', { name: 'Select PIVOT / 01 launch poster' })).toContainText('Hierarchy: hero')
+  await expect(page.getByRole('button', { name: 'Select Cobalt pivot lamp / isolated' })).toContainText('Locked')
+  await page.getByRole('button', { name: 'Type', exact: true }).click()
+  await expect(page.getByText('Approved · Barlow + IBM Plex Mono', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Color', exact: true }).click()
+  await expect(page.getByText('Extract locally. Systematize with The Color API. Explore with Colormind. Only designer-pinned swatches change the campaign palette.')).toBeVisible()
+  await page.getByRole('button', { name: 'History' }).click()
+  await expect(page.getByText('Approved Modular signal as the lead creative territory.')).toBeVisible()
+})
+
+test('switches the PIVOT board between explanatory Working view and clean Presentation view', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/campaign-test')
+  const workspace = page.getByTestId('iterum-workspace')
+  await expect(page.getByRole('button', { name: 'Working', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Present', exact: true }).click()
+  await expect(workspace).toHaveClass(/is-presentation/)
+  await expect(page.getByRole('button', { name: 'Present', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeHidden()
+  await expect(page.getByRole('complementary', { name: 'Campaign job ticket' })).toBeHidden()
+  await expect(page.getByRole('complementary', { name: 'Review tray' })).toBeHidden()
+
+  await page.getByRole('button', { name: 'Working', exact: true }).click()
+  await expect(workspace).toHaveClass(/is-working/)
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible()
 })
 
 test('selects type specimens and navigates the full mechanical', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Layers' }).click()
   const zoom = page.getByLabel('Current board zoom')
   await expect(zoom).toContainText('%')
   await page.getByRole('button', { name: 'Fit board' }).click()
@@ -166,6 +438,7 @@ test('selects type specimens and navigates the full mechanical', async ({ page }
 test('moves, resizes, locks, and unlocks the campaign proof and color strip', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Layers' }).click()
 
   const proof = page.getByRole('button', { name: 'Select Static Bloom campaign proof' })
   await proof.press('ArrowRight')
@@ -222,6 +495,7 @@ test('builds a sourced type pairing and keeps approval with the designer', async
   await expect(page.getByText('5 pending', { exact: true })).toBeVisible()
   await typeProposal.getByRole('button', { name: 'Approve type direction' }).click()
   await expect(page.getByRole('region', { name: 'Latest action receipt' })).toContainText(/approved fraunces \+ instrument sans/i)
+  await page.getByRole('button', { name: 'Layers' }).click()
   await expect(page.getByRole('button', { name: 'Select Headline type specimen' })).toContainText('Typeface: Fraunces')
   await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
   await expect(typeProposal).toBeVisible()
@@ -262,10 +536,11 @@ test('receives a one-click browser image clip with its source and review boundar
   await expect(proposal).toContainText('web-clipper · X0 Y0 W100 H100')
 
   await proposal.getByRole('button', { name: 'Approve to Agent Additions' }).click()
-  await expect(page.getByText('8 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('8 items', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Layers' }).click()
   await expect(page.getByRole('button', { name: 'Select Clipped mineral study' })).toBeVisible()
   await page.getByRole('region', { name: 'Latest action receipt' }).getByRole('button', { name: 'Undo' }).click()
-  await expect(page.getByText('7 items', { exact: true })).toBeVisible()
+  await expect(page.locator('.mechanical-meta').getByText('7 items', { exact: true })).toBeVisible()
   await expect(proposal).toBeVisible()
 })
 

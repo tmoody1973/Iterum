@@ -11,7 +11,7 @@ import { useUiStore } from '../../stores/ui-store'
 import { ReferenceNode } from './reference-node'
 import { TypeSpecimenNode } from './type-specimen-node'
 import { NoteNode } from './note-node'
-import { BoardGroupOutlines, LayoutGhostPreview } from './layout-ghost-preview'
+import { BoardGroupOutlines, BoardHierarchyLabels, LayoutGhostPreview } from './layout-ghost-preview'
 import { CampaignProofNode } from './campaign-proof-node'
 import { ColorStripNode } from './color-strip-node'
 import { CreativeRouteFrame } from './creative-route-frame'
@@ -43,7 +43,7 @@ export function restoreNodeFromRuntime(node: RestorableNode, runtime: WorkspaceR
   return false
 }
 
-export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId, onSelect, proposalPreview, layoutPreview }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; width: number; height: number; selectedId: string | null; onSelect: (id: string | null) => void; proposalPreview?: { proposal: Proposal; position: Point }; layoutPreview?: BoardLayoutProposal }) {
+export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId, onSelect, presentation = false, proposalPreview, layoutPreview }: { snapshot: WorkspaceState; runtime: WorkspaceRuntime; width: number; height: number; selectedId: string | null; onSelect: (id: string | null) => void; presentation?: boolean; proposalPreview?: { proposal: Proposal; position: Point }; layoutPreview?: BoardLayoutProposal }) {
   const stageRef = useRef<Konva.Stage>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const nodes = useRef(new Map<string, Konva.Group>())
@@ -165,21 +165,22 @@ export function MechanicalCanvas({ snapshot, runtime, width, height, selectedId,
       <Rect width={width} height={height} fill="#c8beaf" />
     </Layer>
     <Layer x={viewport.x} y={viewport.y} scaleX={viewport.scale} scaleY={viewport.scale}>
-      <Text text="WORKING MECHANICAL · 48 × 72 IN · 300 DPI" x={22} y={18} fontFamily="IBM Plex Mono" fontSize={10} fill="#171717" />
-      {snapshot.creativeRoutes.map((route) => <CreativeRouteFrame key={route.id} route={route} />)}
-      {proposalPreview && <><Rect x={proposalPreview.position.x} y={proposalPreview.position.y} width={224} height={286} stroke="#4779b8" strokeWidth={2} dash={[8, 5]} fill="rgba(71,121,184,0.08)" /><Text text={`DESTINATION PREVIEW\n${proposalPreview.proposal.intendedTerritory}`} x={proposalPreview.position.x + 10} y={proposalPreview.position.y + 10} fontFamily="IBM Plex Mono" fontSize={9} fill="#4779b8" /></>}
-      <BoardGroupOutlines snapshot={snapshot} />
+      {!presentation && <Text text="WORKING MECHANICAL · 48 × 72 IN · 300 DPI" x={22} y={18} fontFamily="IBM Plex Mono" fontSize={10} fill="#171717" />}
+      {snapshot.creativeRoutes.map((route) => <CreativeRouteFrame key={route.id} route={route} presentation={presentation} />)}
+      {!presentation && proposalPreview && <><Rect x={proposalPreview.position.x} y={proposalPreview.position.y} width={224} height={286} stroke="#4779b8" strokeWidth={2} dash={[8, 5]} fill="rgba(71,121,184,0.08)" /><Text text={`DESTINATION PREVIEW\n${proposalPreview.proposal.intendedTerritory}`} x={proposalPreview.position.x + 10} y={proposalPreview.position.y + 10} fontFamily="IBM Plex Mono" fontSize={9} fill="#4779b8" /></>}
+      {!presentation && <BoardGroupOutlines snapshot={snapshot} />}
       {snapshot.boardItems.map((item) => item.kind === 'type-specimen'
-        ? <TypeSpecimenNode key={item.id} item={item} direction={snapshot.typeDirection} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
+        ? <TypeSpecimenNode key={item.id} item={item} direction={snapshot.typeDirection} selected={!presentation && item.id === selectedId} panEnabled={presentation || panModifier} presentation={presentation} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
         : item.kind === 'campaign-proof'
-          ? <CampaignProofNode key={item.id} item={item} campaign={snapshot.campaign} direction={snapshot.typeDirection} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
+          ? <CampaignProofNode key={item.id} item={item} campaign={snapshot.campaign} direction={snapshot.typeDirection} selected={!presentation && item.id === selectedId} panEnabled={presentation || panModifier} presentation={presentation} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
         : item.kind === 'color-strip'
           ? <ColorStripNode key={item.id} item={item} colors={campaignColors} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
         : item.kind === 'note'
           ? <NoteNode key={item.id} item={item} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />
-        : <ReferenceNode key={item.id} item={item} selected={item.id === selectedId} panEnabled={panModifier} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />)}
-      {layoutPreview && <LayoutGhostPreview snapshot={snapshot} proposal={layoutPreview} />}
-      <Transformer ref={transformerRef} rotateEnabled={false} enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']} onTransformEnd={bakeTransform} />
+        : <ReferenceNode key={item.id} item={item} selected={!presentation && item.id === selectedId} panEnabled={presentation || panModifier} presentation={presentation} onSelect={() => onSelect(item.id)} onDragEnd={(node, position) => move(item, node, position)} nodeRef={(node) => { if (node) nodes.current.set(item.id, node); else nodes.current.delete(item.id) }} />)}
+      {!presentation && <BoardHierarchyLabels snapshot={snapshot} />}
+      {!presentation && layoutPreview && <LayoutGhostPreview snapshot={snapshot} proposal={layoutPreview} />}
+      {!presentation && <Transformer ref={transformerRef} rotateEnabled={false} enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']} onTransformEnd={bakeTransform} />}
     </Layer>
   </Stage>
 }

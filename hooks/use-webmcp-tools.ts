@@ -4,9 +4,10 @@ import { useEffect } from 'react'
 
 import { registerIterumTools } from '../lib/webmcp/register-tools'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
+import type { ProjectController } from '../lib/persistence/project-controller'
 import { useUiStore } from '../stores/ui-store'
 
-export function useWebMcpTools(runtime: WorkspaceRuntime) {
+export function useWebMcpTools(runtime: WorkspaceRuntime, projectController?: ProjectController) {
   const setStatus = useUiStore((state) => state.setWebMcpStatus)
   useEffect(() => {
     const controller = new AbortController()
@@ -21,7 +22,15 @@ export function useWebMcpTools(runtime: WorkspaceRuntime) {
       previewLayoutProposal: (id: string | null) => useUiStore.getState().setPreviewLayoutProposal(id),
       openReview: () => { useUiStore.getState().setActiveRightTab('review'); useUiStore.getState().setReviewDrawerOpen(true) },
     }
-    registerIterumTools(runtime, controller, viewportController, reviewUi).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
+    const presentationUi = {
+      getDisplayState: () => {
+        const state = useUiStore.getState()
+        return { mode: state.boardDisplayMode, selectedItemId: state.selectedBoardItemId, previewProposalId: state.previewLayoutProposalId, workspaceMode: state.activeWorkspaceMode, activeTool: state.activeTool, drawers: { brief: state.isBriefDrawerOpen, review: state.isReviewDrawerOpen } }
+      },
+      setDisplayMode: (mode: ReturnType<typeof useUiStore.getState>['boardDisplayMode']) => useUiStore.getState().setBoardDisplayMode(mode),
+      preparePresentation: () => useUiStore.setState({ boardDisplayMode: 'presentation', selectedBoardItemId: null, previewLayoutProposalId: null, activeWorkspaceMode: 'mechanical', activeTool: 'select', isBriefDrawerOpen: false, isReviewDrawerOpen: false }),
+    }
+    registerIterumTools(runtime, controller, viewportController, reviewUi, presentationUi, projectController).then((registered) => { if (active) setStatus(registered ? 'ready' : 'preview') }).catch(() => { if (active && !controller.signal.aborted) setStatus('error') })
     return () => { active = false; controller.abort() }
-  }, [runtime, setStatus])
+  }, [projectController, runtime, setStatus])
 }

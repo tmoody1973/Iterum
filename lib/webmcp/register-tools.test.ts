@@ -3,9 +3,11 @@ import { render } from '@testing-library/react'
 import { createElement } from 'react'
 
 import { createDemoWorkspaceState } from '../domain/demo-data'
+import { createFullCampaignDemoState } from '../domain/full-campaign-demo-data'
 import { createWorkspaceRuntime } from '../domain/workspace-runtime'
-import { registerIterumTools } from './register-tools'
+import { registerIterumTools, type PresentationUiState } from './register-tools'
 import { useWebMcpTools } from '../../hooks/use-webmcp-tools'
+import type { ProjectController } from '../persistence/project-controller'
 
 const runtime = () => createWorkspaceRuntime(createDemoWorkspaceState())
 
@@ -14,16 +16,16 @@ afterEach(() => { delete document.modelContext })
 describe('registerIterumTools', () => {
   it('falls back without a browser API', async () => expect(await registerIterumTools(runtime())).toBeNull())
 
-  it('registers thirty-two strict tools sequentially and returns versioned errors and receipts', async () => {
+  it('registers forty strict tools sequentially and returns versioned errors and receipts', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown; inputSchema: Record<string, unknown>; annotations?: { untrustedContentHint?: boolean } }> = []
     const signals: AbortSignal[] = []
     document.modelContext = { registerTool: vi.fn(async (tool, options) => { registered.push(tool); signals.push(options?.signal!); return undefined }) }
     const work = runtime()
     const result = await registerIterumTools(work)
-    expect(result?.count).toBe(32)
-    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'update_campaign_brief', 'request_campaign_brief_lock', 'propose_creative_routes', 'request_creative_route_decision', 'get_board_viewport', 'focus_board_items', 'set_board_viewport', 'reset_board_viewport', 'get_board_items', 'add_board_note', 'propose_board_layout', 'preview_board_layout', 'apply_board_layout', 'group_board_items', 'assign_board_territory', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'search_typefaces', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_web_clip', 'propose_reference_tags', 'propose_type_direction', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
+    expect(result?.count).toBe(40)
+    expect(registered.map((tool) => tool.name)).toEqual(['get_campaign_context', 'update_campaign_brief', 'request_campaign_brief_lock', 'propose_creative_routes', 'request_creative_route_decision', 'get_board_display_mode', 'set_board_display_mode', 'prepare_direction_presentation', 'get_board_viewport', 'focus_board_items', 'set_board_viewport', 'reset_board_viewport', 'get_board_items', 'get_board_structure', 'propose_board_organization', 'propose_creative_territory', 'preview_board_organization', 'explain_board_group', 'add_board_note', 'propose_board_layout', 'preview_board_layout', 'apply_board_layout', 'group_board_items', 'assign_board_territory', 'search_reference_library', 'capture_url_reference', 'search_reference_images', 'search_typefaces', 'isolate_reference_background', 'extract_reference_palette', 'suggest_color_scheme', 'suggest_experimental_palette', 'propose_captured_reference', 'propose_web_clip', 'propose_reference_tags', 'propose_type_direction', 'propose_reference', 'approve_reference', 'reject_reference', 'undo_action'])
     expect(registered.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true)
-    expect(signals).toHaveLength(32)
+    expect(signals).toHaveLength(40)
     expect(signals.every((signal) => signal === result?.controller.signal)).toBe(true)
     expect(registered.every((tool) => tool.annotations?.untrustedContentHint === true)).toBe(true)
     const approve = registered.find((tool) => tool.name === 'approve_reference')!
@@ -84,6 +86,77 @@ describe('registerIterumTools', () => {
     expect(work.getSnapshot().version).toBe(3)
   })
 
+  it('reads, switches, and prepares an approved direction using presentation-only WebMCP state', async () => {
+    const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
+    document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
+    const work = createWorkspaceRuntime(createFullCampaignDemoState())
+    let viewport = { x: 0, y: 0, scale: 1 }
+    let viewportMode: 'fit' | 'custom' = 'custom'
+    let display: PresentationUiState = { mode: 'working', selectedItemId: 'campaign-proof-pivot', previewProposalId: 'preview-1', workspaceMode: 'layers', activeTool: 'organize', drawers: { brief: true, review: true } }
+    await registerIterumTools(work, new AbortController(), {
+      getViewport: () => viewport,
+      getViewportSize: () => ({ width: 900, height: 700 }),
+      setViewport: (next, mode = 'custom') => { viewport = next; viewportMode = mode },
+    }, undefined, {
+      getDisplayState: () => display,
+      setDisplayMode: (mode) => { display = { ...display, mode } },
+      preparePresentation: () => { display = { mode: 'presentation', selectedItemId: null, previewProposalId: null, workspaceMode: 'mechanical', activeTool: 'select', drawers: { brief: false, review: false } } },
+    })
+    const context = { signal: new AbortController().signal }
+    const read = registered.find((tool) => tool.name === 'get_board_display_mode')!
+    const initial = await read.execute({ campaignId: 'campaign-pivot-one', boardId: 'board-pivot-one' }, context) as { data: { mode: string }; boardVersion: number; ui: { updated: boolean } }
+    expect(initial).toMatchObject({ data: { mode: 'working' }, boardVersion: 18, ui: { updated: false } })
+
+    const set = registered.find((tool) => tool.name === 'set_board_display_mode')!
+    const switched = await set.execute({ campaignId: 'campaign-pivot-one', boardId: 'board-pivot-one', mode: 'presentation' }, context) as { data: { mode: string }; ui: { updated: boolean } }
+    expect(switched).toMatchObject({ data: { mode: 'presentation' }, ui: { updated: true } })
+    expect(work.getSnapshot().version).toBe(18)
+    expect(work.getSnapshot().receipts).toHaveLength(4)
+
+    display = { ...display, selectedItemId: 'campaign-proof-pivot', previewProposalId: 'preview-1', workspaceMode: 'layers', activeTool: 'organize', drawers: { brief: true, review: true } }
+    const prepare = registered.find((tool) => tool.name === 'prepare_direction_presentation')!
+    const prepared = await prepare.execute({ campaignId: 'campaign-pivot-one', boardId: 'board-pivot-one', routeId: 'route-modular-signal' }, context) as { ok: boolean; data: { route: { status: string }; presentation: { mode: string; selectedItemId: string | null; drawers: { brief: boolean; review: boolean } }; includedItems: unknown[]; heroItems: unknown[] }; ui: { updated: boolean } }
+    expect(prepared.ok).toBe(true)
+    expect(prepared.data.route.status).toBe('approved')
+    expect(prepared.data.presentation).toMatchObject({ mode: 'presentation', selectedItemId: null, drawers: { brief: false, review: false } })
+    expect(prepared.data.includedItems).toHaveLength(8)
+    expect(prepared.data.heroItems).toHaveLength(1)
+    expect(viewportMode).toBe('fit')
+    expect(work.getSnapshot().version).toBe(18)
+
+    const blocked = await prepare.execute({ campaignId: 'campaign-pivot-one', boardId: 'board-pivot-one', routeId: 'route-object-theatre' }, context) as { ok: boolean; error?: { code: string } }
+    expect(blocked).toMatchObject({ ok: false, error: { code: 'CREATIVE_ROUTE_NOT_APPROVED' } })
+  })
+
+  it('exposes cloud project, autosave, snapshot, and recovery tools through an injected controller', async () => {
+    const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
+    document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
+    const work = runtime()
+    const restoredState = { ...work.getSnapshot(), version: 9 }
+    const projectController: ProjectController = {
+      getStatus: () => ({ phase: 'saved', projectKey: 'static-bloom-123', headRevision: 4, savedWorkspaceVersion: 3, lastSavedAt: 100, message: 'Saved to Convex' }),
+      listProjects: vi.fn(async () => [{ id: 'project-1', projectKey: 'static-bloom-123', name: 'Static Bloom', campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', workspaceVersion: 3, headRevision: 4, createdAt: 50, updatedAt: 100 }]),
+      createProject: vi.fn(async (input) => ({ id: 'project-2', projectKey: 'new-campaign-456', name: input.name, campaignId: 'campaign-new', boardId: 'board-new', workspaceVersion: 0, headRevision: 1, createdAt: 101, updatedAt: 101 })),
+      openProject: vi.fn(),
+      flush: vi.fn(async () => ({ phase: 'saved' as const, projectKey: 'static-bloom-123', headRevision: 4, savedWorkspaceVersion: 3, lastSavedAt: 100, message: 'Saved to Convex' })),
+      createVersion: vi.fn(async (label) => ({ id: 'version-1', label, kind: 'snapshot' as const, actor: 'agent' as const, workspaceVersion: 3, headRevision: 4, createdAt: 102 })),
+      listVersions: vi.fn(async () => [{ id: 'version-1', label: 'Direction approved', kind: 'snapshot' as const, actor: 'designer' as const, workspaceVersion: 3, headRevision: 4, createdAt: 102 }]),
+      restoreVersion: vi.fn(async () => ({ state: restoredState, status: { phase: 'saved' as const, projectKey: 'static-bloom-123', headRevision: 5, savedWorkspaceVersion: 9, lastSavedAt: 103, message: 'Version restored as a new project head' } })),
+    }
+    const result = await registerIterumTools(work, new AbortController(), undefined, undefined, undefined, projectController)
+    expect(result?.count).toBe(47)
+    expect(registered.map((tool) => tool.name)).toEqual(expect.arrayContaining(['list_campaign_projects', 'create_campaign_project', 'open_campaign_project', 'get_project_save_status', 'create_board_snapshot', 'list_board_versions', 'restore_board_version']))
+    const context = { signal: new AbortController().signal }
+    const projects = await registered.find((tool) => tool.name === 'list_campaign_projects')!.execute({}, context) as { ok: boolean; data: { projects: unknown[] } }
+    expect(projects).toMatchObject({ ok: true, data: { projects: [{ projectKey: 'static-bloom-123' }] } })
+    const created = await registered.find((tool) => tool.name === 'create_campaign_project')!.execute({ name: 'New Campaign', objective: 'Start from an empty board.', idempotencyKey: 'create-new' }, context) as { ok: boolean; data: { project: { projectKey: string } } }
+    expect(created).toMatchObject({ ok: true, data: { project: { projectKey: 'new-campaign-456' } } })
+    const versioned = await registered.find((tool) => tool.name === 'create_board_snapshot')!.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'snapshot-1', label: 'Direction approved' }, context) as { ok: boolean; data: { version: { id: string } } }
+    expect(versioned).toMatchObject({ ok: true, data: { version: { id: 'version-1' } } })
+    const restored = await registered.find((tool) => tool.name === 'restore_board_version')!.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'restore-1', versionId: 'version-1' }, context) as { ok: boolean; boardVersion: number }
+    expect(restored).toMatchObject({ ok: true, boardVersion: 9 })
+  })
+
   it('proposes and previews a Direction Draft while reserving application for the designer', async () => {
     const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
     document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
@@ -114,6 +187,44 @@ describe('registerIterumTools', () => {
     expect(approved.ok).toBe(true)
     expect(work.getSnapshot().boardItems.find((item) => item.id === 'note-severe')).toMatchObject({ kind: 'note', noteTone: 'ruby' })
     expect(work.getSnapshot().boardItems.find((item) => item.id === 'campaign-proof-static-bloom')?.locked).toBe(true)
+  })
+
+  it('organizes one route through an immutable proposal, ghost preview, and explainable hierarchy', async () => {
+    const registered: Array<{ name: string; execute: (input: unknown, context: { signal: AbortSignal }) => Promise<unknown> | unknown }> = []
+    document.modelContext = { registerTool: vi.fn(async (tool) => { registered.push(tool); return undefined }) }
+    const work = runtime()
+    const previewLayoutProposal = vi.fn()
+    const openReview = vi.fn()
+    let viewport = { x: 0, y: 0, scale: 1 }
+    await registerIterumTools(work, new AbortController(), { getViewport: () => viewport, getViewportSize: () => ({ width: 900, height: 700 }), setViewport: (next) => { viewport = next } }, { previewLayoutProposal, openReview })
+    const context = { signal: new AbortController().signal }
+    const getStructure = registered.find((tool) => tool.name === 'get_board_structure')!
+    const initialStructure = await getStructure.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom' }, context) as { data: { routes: unknown[]; groups: unknown[] } }
+    expect(initialStructure.data.routes).toHaveLength(3)
+    expect(initialStructure.data.groups).toHaveLength(0)
+
+    const propose = registered.find((tool) => tool.name === 'propose_board_organization')!
+    const proposed = await propose.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', expectedBoardVersion: 3, idempotencyKey: 'organize-type-route', organization: { id: 'organization-tool', title: 'Type pressure hierarchy', scope: { type: 'route', routeId: 'route-synthetic' }, strategy: 'type', layout: 'cluster-grid', maximumGroups: 3, ranking: 'visual-weight', briefKeywords: ['severe', 'warm'] } }, context) as { ok: boolean; boardVersion: number; data: { proposalId: string; groups: Array<{ id: string }>; untouchedLockedItemIds: string[]; requiresDesignerApproval: boolean } }
+    expect(proposed).toMatchObject({ ok: true, boardVersion: 4, data: { proposalId: 'organization-tool', untouchedLockedItemIds: ['reference-type-study'], requiresDesignerApproval: true } })
+    expect(proposed.data.groups).toHaveLength(1)
+    expect(work.getSnapshot().boardItems.every((item) => !item.hierarchyRole)).toBe(true)
+    expect(registered.some((tool) => tool.name === 'approve_board_organization')).toBe(false)
+
+    const preview = registered.find((tool) => tool.name === 'preview_board_organization')!
+    const previewed = await preview.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'organization-tool' }, context) as { ok: boolean; boardVersion: number; data: { assignments: Array<{ role: string }>; projectedItems: unknown[] }; ui: { updated: boolean } }
+    expect(previewed.ok).toBe(true)
+    expect(previewed.boardVersion).toBe(4)
+    expect(previewed.data.assignments.map((assignment) => assignment.role)).toEqual(['hero', 'primary'])
+    expect(previewed.data.projectedItems).toHaveLength(2)
+    expect(previewed.ui.updated).toBe(true)
+    expect(previewLayoutProposal).toHaveBeenCalledWith('organization-tool')
+    expect(openReview).toHaveBeenCalled()
+    expect(viewport.scale).not.toBe(1)
+
+    const explain = registered.find((tool) => tool.name === 'explain_board_group')!
+    const explained = await explain.execute({ campaignId: 'campaign-static-bloom', boardId: 'board-static-bloom', proposalId: 'organization-tool', groupId: proposed.data.groups[0].id }, context) as { ok: boolean; data: { assignments: Array<{ itemTitle: string; role: string }> } }
+    expect(explained.ok).toBe(true)
+    expect(explained.data.assignments).toEqual(expect.arrayContaining([expect.objectContaining({ itemTitle: 'Headline type specimen', role: 'hero' })]))
   })
 
   it('routes an agent web clip through the pending Review Tray', async () => {
@@ -189,7 +300,7 @@ describe('registerIterumTools', () => {
     const work = runtime()
     function Harness() { useWebMcpTools(work); return null }
     const mounted = render(createElement(Harness))
-    await vi.waitFor(() => expect(signals).toHaveLength(32))
+    await vi.waitFor(() => expect(signals).toHaveLength(40))
     mounted.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })

@@ -24,6 +24,7 @@ import type {
   WorkspaceState,
 } from './types'
 import { projectBoardLayout } from './board-layout'
+import { createBoardOrganizationProposal } from './board-organization'
 
 const PROCESSED_COMMAND_LIMIT = 100
 const AGENT_ADDITIONS_TERRITORY = 'Agent Additions'
@@ -133,8 +134,9 @@ function validTypeDirection(value: TypeDirection) {
 }
 
 function invalidBoardLayout(state: WorkspaceState, proposal: Omit<BoardLayoutProposal, 'status'>): CommandFailure | undefined {
-  if (!proposal.id?.trim() || proposal.id.length > 80 || !proposal.title?.trim() || proposal.title.length > 120 || !proposal.rationale?.trim() || proposal.rationale.length > 320 || !Array.isArray(proposal.changes) || !Array.isArray(proposal.notes) || proposal.changes.length + proposal.notes.length < 1 || proposal.changes.length > 30 || proposal.notes.length > 12) {
-    return failure(state, 'INVALID_BOARD_LAYOUT', 'A Direction Draft needs an ID, title, rationale, and 1–42 bounded operations.')
+  const maximumChanges = proposal.organization ? 200 : 30
+  if (!proposal.id?.trim() || proposal.id.length > 80 || !proposal.title?.trim() || proposal.title.length > 120 || !proposal.rationale?.trim() || proposal.rationale.length > 320 || !Array.isArray(proposal.changes) || !Array.isArray(proposal.notes) || proposal.changes.length + proposal.notes.length < 1 || proposal.changes.length > maximumChanges || proposal.notes.length > 12) {
+    return failure(state, 'INVALID_BOARD_LAYOUT', `A Direction Draft needs an ID, title, rationale, and 1–${maximumChanges + 12} bounded operations.`)
   }
   const changeIds = proposal.changes.map((change) => change.itemId)
   if (new Set(changeIds).size !== changeIds.length) return failure(state, 'INVALID_BOARD_LAYOUT', 'Each board item may appear only once in a Direction Draft.')
@@ -142,11 +144,12 @@ function invalidBoardLayout(state: WorkspaceState, proposal: Omit<BoardLayoutPro
     const item = state.boardItems.find((candidate) => candidate.id === change.itemId)
     if (!item) return failure(state, 'BOARD_ITEM_NOT_FOUND', `Board item ${change.itemId} no longer exists.`)
     const minimumHeight = item.kind === 'color-strip' ? 16 : 60
-    const hasChange = change.position !== undefined || change.width !== undefined || change.height !== undefined || change.locked !== undefined || change.territory !== undefined || change.groupId !== undefined
-    if (!hasChange || (change.position && (!Number.isFinite(change.position.x) || !Number.isFinite(change.position.y) || Math.abs(change.position.x) > 5000 || Math.abs(change.position.y) > 5000)) || (change.width !== undefined && (!Number.isFinite(change.width) || change.width < 80 || change.width > 1200)) || (change.height !== undefined && (!Number.isFinite(change.height) || change.height < minimumHeight || change.height > 1200)) || (change.locked !== undefined && typeof change.locked !== 'boolean') || (change.territory !== undefined && (!change.territory.trim() || change.territory.length > 80)) || (change.groupId !== undefined && (!change.groupId.trim() || change.groupId.length > 80 || !change.groupLabel?.trim() || change.groupLabel.length > 80)) || (change.groupLabel !== undefined && change.groupId === undefined)) {
+    const hasChange = change.position !== undefined || change.width !== undefined || change.height !== undefined || change.locked !== undefined || change.territory !== undefined || change.groupId !== undefined || change.hierarchyRole !== undefined || change.hierarchyConfidence !== undefined
+    if (!hasChange || (change.position && (!Number.isFinite(change.position.x) || !Number.isFinite(change.position.y) || Math.abs(change.position.x) > 5000 || Math.abs(change.position.y) > 5000)) || (change.width !== undefined && (!Number.isFinite(change.width) || change.width < 80 || change.width > 1200)) || (change.height !== undefined && (!Number.isFinite(change.height) || change.height < minimumHeight || change.height > 1200)) || (change.locked !== undefined && typeof change.locked !== 'boolean') || (change.territory !== undefined && (!change.territory.trim() || change.territory.length > 80)) || (change.groupId !== undefined && (!change.groupId.trim() || change.groupId.length > 80 || !change.groupLabel?.trim() || change.groupLabel.length > 80)) || (change.groupLabel !== undefined && change.groupId === undefined) || (change.hierarchyRole !== undefined && !['hero', 'primary', 'supporting'].includes(change.hierarchyRole)) || (change.hierarchyConfidence !== undefined && (!Number.isFinite(change.hierarchyConfidence) || change.hierarchyConfidence < 0 || change.hierarchyConfidence > 1))) {
       return failure(state, 'INVALID_BOARD_LAYOUT', `The proposed change for ${item.title} is invalid.`)
     }
     if (item.locked && change.locked !== false && (change.position || change.width !== undefined || change.height !== undefined)) return failure(state, 'LOCKED_REFERENCE', `${item.title} is locked and cannot change geometry unless the same Direction Draft proposes unlocking it.`)
+    if (proposal.organization && item.locked) return failure(state, 'LOCKED_REFERENCE', `${item.title} is layout-locked and cannot change geometry, group membership, or hierarchy during organization.`)
   }
   const noteIds = proposal.notes.map((note) => note.id)
   if (new Set(noteIds).size !== noteIds.length || noteIds.some((id) => state.boardItems.some((item) => item.id === id))) return failure(state, 'INVALID_BOARD_LAYOUT', 'Direction Draft note IDs must be unique on this board.')
@@ -404,6 +407,19 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
         { type: 'board-layout-proposal', proposalId: proposal.id },
       )
     }
+    case 'propose-board-organization': {
+      if (state.layoutProposals.some((proposal) => proposal.id === command.request.id)) return failure(state, 'INVALID_BOARD_ORGANIZATION', 'An organization proposal with this ID already exists.')
+      const generated = createBoardOrganizationProposal(state, command.request)
+      if (!generated.ok) return failure(state, generated.code, generated.message)
+      const invalid = invalidBoardLayout(state, generated.proposal)
+      if (invalid) return invalid
+      const proposal: BoardLayoutProposal = { ...generated.proposal, status: 'pending' }
+      return success(
+        { ...state, layoutProposals: [proposal, ...state.layoutProposals] }, command,
+        `Prepared “${proposal.title}” for designer review without changing the board.`,
+        { type: 'board-layout-proposal', proposalId: proposal.id },
+      )
+    }
     case 'review-board-layout': {
       if (command.actor === 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only the designer can apply or reject a Direction Draft.')
       const proposal = state.layoutProposals.find((item) => item.id === command.proposalId)
@@ -416,17 +432,21 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
           { type: 'board-layout-decision', proposalId: proposal.id, previousStatus: proposal.status, previousItems: [], addedItemIds: [] },
         )
       }
+      if (proposal.organization && state.version !== proposal.organization.baselineBoardVersion + 1) return failure(state, 'STALE_BOARD_ORGANIZATION', 'The board changed after this organization preview was created. Generate a fresh preview before applying it.')
       const invalid = invalidBoardLayout(state, proposal)
       if (invalid) return invalid
       const affectedIds = new Set(proposal.changes.map((change) => change.itemId))
       const previousItems = state.boardItems.filter((item) => affectedIds.has(item.id)).map((item) => ({ ...item, position: { ...item.position } }))
+      const organizationSummary = proposal.organization
+        ? `Applied organization proposal “${proposal.title}” — ${proposal.organization.assignments.filter((assignment) => assignment.role === 'hero').length} hero, ${proposal.organization.assignments.filter((assignment) => assignment.role === 'primary').length} primary, and ${proposal.organization.assignments.filter((assignment) => assignment.role === 'supporting').length} supporting item${proposal.organization.assignments.length === 1 ? '' : 's'} across ${proposal.organization.groups.length} group${proposal.organization.groups.length === 1 ? '' : 's'}; ${proposal.organization.untouchedLockedItemIds.length} protected item${proposal.organization.untouchedLockedItemIds.length === 1 ? '' : 's'} unchanged.`
+        : `Applied Direction Draft “${proposal.title}” with ${proposal.changes.length + proposal.notes.length} changes.`
       return success(
         {
           ...state,
           boardItems: projectBoardLayout(state.boardItems, proposal),
           layoutProposals: state.layoutProposals.map((item) => item.id === proposal.id ? { ...item, status: 'approved' } : item),
         }, command,
-        `Applied Direction Draft “${proposal.title}” with ${proposal.changes.length + proposal.notes.length} changes.`,
+        organizationSummary,
         { type: 'board-layout-decision', proposalId: proposal.id, previousStatus: proposal.status, previousItems, addedItemIds: proposal.notes.map((note) => note.id) },
       )
     }

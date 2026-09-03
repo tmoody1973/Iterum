@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDemoWorkspaceState } from '../../lib/domain/demo-data'
 import { createWorkspaceRuntime } from '../../lib/domain/workspace-runtime'
 import { useUiStore } from '../../stores/ui-store'
-import { BoardOutline } from './board-outline'
+import { BoardOutline, BoardSemanticOutline } from './board-outline'
 import { restoreNodeFromItem, restoreNodeFromRuntime } from './mechanical-canvas'
 import { referenceFilename, referenceSourceClass } from './reference-node'
 
@@ -18,16 +18,22 @@ function renderOutline() {
 afterEach(() => cleanup())
 
 describe('mechanical DOM mirror', () => {
-  it('lists every canvas object and gives the three protected references explicit unlock controls', () => {
-    renderOutline()
-    expect(screen.getAllByRole('button', { name: /^unlock /i })).toHaveLength(3)
+  it('lists every canvas object and reveals controls only for the selected layer', () => {
+    const runtime = renderOutline()
     expect(screen.getByRole('button', { name: /select static bloom campaign proof/i })).toBeVisible()
     expect(screen.getByRole('button', { name: /select campaign color control strip/i })).toBeVisible()
     expect(screen.getAllByText(/source: iterum synthetic reference/i)).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: /^unlock /i })).not.toBeInTheDocument()
+    cleanup()
+    render(<BoardOutline snapshot={runtime.getSnapshot()} runtime={runtime} selectedId="reference-concrete" onSelect={() => undefined} />)
+    expect(screen.getByRole('button', { name: /unlock wet concrete/i })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /unlock crushed iris/i })).not.toBeInTheDocument()
   })
 
   it('lets the designer lock a previously movable campaign proof', () => {
     const runtime = renderOutline()
+    fireEvent.click(screen.getByRole('button', { name: /select static bloom campaign proof/i }))
+    render(<BoardOutline snapshot={runtime.getSnapshot()} runtime={runtime} selectedId="campaign-proof-static-bloom" onSelect={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: /lock static bloom campaign proof/i }))
     expect(runtime.getSnapshot().boardItems.find((item) => item.id === 'campaign-proof-static-bloom')?.locked).toBe(true)
     expect(runtime.getSnapshot().receipts[0]).toMatchObject({ action: 'set-board-item-lock', actor: 'designer' })
@@ -52,11 +58,18 @@ describe('mechanical DOM mirror', () => {
     const initial = createDemoWorkspaceState()
     initial.boardItems[0] = { ...initial.boardItems[0], locked: false }
     const runtime = createWorkspaceRuntime(initial)
-    render(<BoardOutline snapshot={runtime.getSnapshot()} runtime={runtime} selectedId={null} onSelect={() => undefined} />)
+    render(<BoardOutline snapshot={runtime.getSnapshot()} runtime={runtime} selectedId="reference-concrete" onSelect={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: /increase wet concrete.*size/i }))
     expect(runtime.getSnapshot().boardItems[0]).toMatchObject({ width: 296, height: 376 })
-    expect(screen.getAllByRole('button', { name: /resize .* larger/i })).toHaveLength(2)
-    screen.getAllByRole('button', { name: /resize .* larger/i }).forEach((button) => expect(button).toBeDisabled())
+    expect(screen.getByRole('button', { name: /increase wet concrete.*size/i })).toBeEnabled()
+  })
+
+  it('keeps a non-interactive semantic description available while Layers is closed', () => {
+    const snapshot = createDemoWorkspaceState()
+    render(<BoardSemanticOutline snapshot={snapshot} />)
+    expect(screen.getByRole('heading', { name: 'Board object summary' })).toBeInTheDocument()
+    expect(screen.getByText(/wet concrete.*locked.*source: iterum synthetic reference/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('derives stable canvas provenance labels', () => {

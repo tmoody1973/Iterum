@@ -18,12 +18,13 @@ function useProofImage(url?: string) {
   return image
 }
 
-export function CampaignProofNode({ item, campaign, direction, selected, panEnabled, onSelect, onDragEnd, nodeRef }: {
+export function CampaignProofNode({ item, campaign, direction, selected, panEnabled, presentation = false, onSelect, onDragEnd, nodeRef }: {
   item: BoardItem
   campaign: Campaign
   direction: TypeDirection | null
   selected: boolean
   panEnabled: boolean
+  presentation?: boolean
   onSelect: () => void
   onDragEnd: (node: Konva.Group, position: { x: number; y: number }) => void
   nodeRef: (node: Konva.Group | null) => void
@@ -41,8 +42,8 @@ export function CampaignProofNode({ item, campaign, direction, selected, panEnab
     <Text x={padding} y={padding + 22} width={item.width - padding * 2} text={campaign.name.toUpperCase()} align="right" fontFamily="IBM Plex Mono" fontSize={9} fill="#a05040" />
     <Text x={padding} y={Math.max(72, item.height * .15)} width={item.width * .66} text={headline} fontFamily={headlineFamily} fontStyle="bold" fontSize={headlineSize} lineHeight={.78} fill="#171717" />
     {image ? <KonvaImage image={image} x={item.width * .38} y={item.height * .18} width={item.width * .58} height={item.height * .68} opacity={.78} globalCompositeOperation="multiply" /> : <Rect x={item.width * .38} y={item.height * .18} width={item.width * .58} height={item.height * .68} fill="rgba(160,80,64,.18)" />}
-    <Text x={item.width * .65} y={item.height * .69} width={item.width * .27} text="OZONE\nCRUSHED IRIS\nMINERAL RAIN\nWARM CONCRETE\nSKIN" fontFamily="IBM Plex Mono" fontSize={8} lineHeight={1.45} fill="#a05040" />
+    <Text x={item.width * .65} y={item.height * .69} width={item.width * .27} text={campaign.creativeBrief.tone.map((tone) => tone.toUpperCase()).join('\n')} fontFamily="IBM Plex Mono" fontSize={8} lineHeight={1.45} fill="#a05040" />
     <Text x={padding} y={item.height - 37} width={item.width - padding * 2} text={`ITERUM.COM     ${campaign.line.toUpperCase()}`} fontFamily="IBM Plex Mono" fontSize={7} fill="#a05040" />
-    <Text x={padding} y={item.height - 22} width={item.width - padding * 2} text={item.locked ? 'CAMPAIGN PROOF · LOCKED' : 'CAMPAIGN PROOF · SELECT · MOVE · RESIZE'} fontFamily="IBM Plex Mono" fontSize={7} fill={selected ? '#315f98' : '#6e463a'} />
+    {!presentation && <Text x={padding} y={item.height - 22} width={item.width - padding * 2} text={item.locked ? 'CAMPAIGN PROOF · LOCKED' : 'CAMPAIGN PROOF · SELECT · MOVE · RESIZE'} fontFamily="IBM Plex Mono" fontSize={7} fill={selected ? '#315f98' : '#6e463a'} />}
   </Group>
 }

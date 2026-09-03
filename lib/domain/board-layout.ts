@@ -32,6 +32,8 @@ export function projectBoardLayout(items: BoardItem[], proposal: Pick<BoardLayou
       ...(change.locked !== undefined ? { locked: change.locked } : {}),
       ...(change.territory !== undefined ? { territory: change.territory } : {}),
       ...(change.groupId !== undefined ? { groupId: change.groupId, groupLabel: change.groupLabel } : {}),
+      ...(change.hierarchyRole !== undefined ? { hierarchyRole: change.hierarchyRole } : {}),
+      ...(change.hierarchyConfidence !== undefined ? { hierarchyConfidence: change.hierarchyConfidence } : {}),
     }
   })
   return [...projected, ...proposal.notes.map(boardItemFromNote)]

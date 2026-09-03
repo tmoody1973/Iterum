@@ -5,14 +5,18 @@ import { create } from 'zustand'
 import type { BoardViewport, ViewportSize } from '../lib/board/viewport'
 
 export type RightTab = 'review' | 'capture' | 'library' | 'activity'
-export type ActiveTool = 'select' | 'crop' | 'color' | 'type' | 'annotate'
+export type ActiveTool = 'select' | 'crop' | 'color' | 'type' | 'organize' | 'annotate'
+export type WorkspaceMode = 'mechanical' | 'layers' | 'history'
 export type WebMcpStatus = 'preview' | 'ready' | 'error'
+export type BoardDisplayMode = 'working' | 'presentation'
 
 export interface UiState {
   selectedBoardItemId: string | null
   previewLayoutProposalId: string | null
   activeRightTab: RightTab
   activeTool: ActiveTool
+  activeWorkspaceMode: WorkspaceMode
+  boardDisplayMode: BoardDisplayMode
   webMcpStatus: WebMcpStatus
   webClipMessage: string | null
   boardViewport: BoardViewport
@@ -25,6 +29,8 @@ export interface UiState {
   setPreviewLayoutProposal: (id: string | null) => void
   setActiveRightTab: (tab: RightTab) => void
   setActiveTool: (tool: ActiveTool) => void
+  setActiveWorkspaceMode: (mode: WorkspaceMode) => void
+  setBoardDisplayMode: (mode: BoardDisplayMode) => void
   setWebMcpStatus: (status: WebMcpStatus) => void
   setWebClipMessage: (message: string | null) => void
   setBoardViewport: (viewport: BoardViewport, mode?: 'fit' | 'custom') => void
@@ -39,6 +45,8 @@ export const useUiStore = create<UiState>()((set) => ({
   previewLayoutProposalId: null,
   activeRightTab: 'review',
   activeTool: 'select',
+  activeWorkspaceMode: 'mechanical',
+  boardDisplayMode: 'working',
   webMcpStatus: 'preview',
   webClipMessage: null,
   boardViewport: { x: 0, y: 0, scale: 1 },
@@ -51,6 +59,8 @@ export const useUiStore = create<UiState>()((set) => ({
   setPreviewLayoutProposal: (previewLayoutProposalId) => set({ previewLayoutProposalId }),
   setActiveRightTab: (activeRightTab) => set({ activeRightTab }),
   setActiveTool: (activeTool) => set({ activeTool }),
+  setActiveWorkspaceMode: (activeWorkspaceMode) => set({ activeWorkspaceMode }),
+  setBoardDisplayMode: (boardDisplayMode) => set({ boardDisplayMode }),
   setWebMcpStatus: (webMcpStatus) => set({ webMcpStatus }),
   setWebClipMessage: (webClipMessage) => set({ webClipMessage }),
   setBoardViewport: (boardViewport, boardViewportMode = 'custom') => set({ boardViewport, boardViewportMode, isBoardViewportReady: true }),

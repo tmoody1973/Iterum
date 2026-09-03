@@ -93,6 +93,8 @@ export interface BoardItem {
   noteTone?: 'blue' | 'ruby' | 'paper'
   groupId?: string
   groupLabel?: string
+  hierarchyRole?: HierarchyRole
+  hierarchyConfidence?: number
   imageUrl?: string
   sourceUrl?: string
   attribution?: string
@@ -113,6 +115,88 @@ export interface BoardItem {
 
 export type RightsStatus = 'cleared' | 'reference-only' | 'uncertain'
 export type ProposalStatus = 'pending' | 'approved' | 'rejected'
+export type HierarchyRole = 'hero' | 'primary' | 'supporting'
+export type BoardOrganizationStrategy = 'tag' | 'type'
+export type BoardOrganizationRanking = 'visual-weight' | 'board-order'
+export type BoardOrganizationScope =
+  | { type: 'route'; routeId: string }
+  | { type: 'territory'; territory: string }
+  | { type: 'selection'; itemIds: string[] }
+  | { type: 'whole-board' }
+
+export interface BoardOrganizationRequest {
+  id: string
+  title: string
+  scope: BoardOrganizationScope
+  strategy: BoardOrganizationStrategy
+  layout: 'cluster-grid'
+  maximumGroups: number
+  ranking: BoardOrganizationRanking
+  briefKeywords?: string[]
+}
+
+export interface BoardOrganizationAssignment {
+  itemId: string
+  groupId: string
+  groupLabel: string
+  role: HierarchyRole
+  confidence: number
+  rationale: string
+}
+
+export interface BoardOrganizationGroup {
+  id: string
+  label: string
+  itemIds: string[]
+  heroItemId: string
+  confidence: number
+  rationale: string
+}
+
+export interface BoardOrganizationUnresolvedItem {
+  itemId: string
+  reason: string
+}
+
+export interface BoardOrganizationMetadata {
+  origin: 'iterum-organize-v1'
+  baselineBoardVersion: number
+  scope: BoardOrganizationScope
+  strategy: BoardOrganizationStrategy
+  layout: 'cluster-grid'
+  ranking: BoardOrganizationRanking
+  maximumGroups: number
+  groups: BoardOrganizationGroup[]
+  assignments: BoardOrganizationAssignment[]
+  unresolvedItems: BoardOrganizationUnresolvedItem[]
+  untouchedLockedItemIds: string[]
+}
+
+export type CreativeTerritoryDensity = 'restrained' | 'balanced' | 'dense'
+export type CreativeTerritoryContribution = 'image-treatment' | 'composition' | 'materiality'
+export type CreativeTerritoryPaletteRole = 'ground' | 'accent' | 'support' | 'type'
+export type CreativeTerritoryRelationshipKind = 'contrast' | 'echo' | 'sequence' | 'material-bridge'
+
+export interface CreativeTerritoryRequest {
+  id: string
+  title: string
+  routeId: string
+  thesis: string
+  mood: string
+  density: CreativeTerritoryDensity
+  groupingSignals: string[]
+  references: Array<{ itemId: string; contribution: CreativeTerritoryContribution; annotation: string }>
+  hierarchy: { heroItemId: string; primaryItemIds: string[]; supportingItemIds: string[] }
+  typography: { headlineItemId: string; bodyItemId: string; relationship: string; scaleRatio: number }
+  palette: Array<{ hex: string; name: string; role: CreativeTerritoryPaletteRole }>
+  relationships: Array<{ fromItemId: string; toItemId: string; kind: CreativeTerritoryRelationshipKind; rationale: string }>
+  application: { itemId: string; format: string; caption: string }
+}
+
+export interface CreativeTerritoryMetadata extends CreativeTerritoryRequest {
+  origin: 'iterum-creative-territory-v1'
+  baselineBoardVersion: number
+}
 
 export interface BoardLayoutChange {
   itemId: string
@@ -123,6 +207,8 @@ export interface BoardLayoutChange {
   territory?: string
   groupId?: string
   groupLabel?: string
+  hierarchyRole?: HierarchyRole
+  hierarchyConfidence?: number
 }
 
 export interface BoardNoteDraft {
@@ -142,6 +228,8 @@ export interface BoardLayoutProposal {
   rationale: string
   changes: BoardLayoutChange[]
   notes: BoardNoteDraft[]
+  organization?: BoardOrganizationMetadata
+  creativeTerritory?: CreativeTerritoryMetadata
   status: ProposalStatus
 }
 
@@ -267,6 +355,7 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'propose-type-direction'; proposal: Omit<TypeDirectionProposal, 'status'> })
   | (CommandBase & { type: 'review-type-direction'; proposalId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'propose-board-layout'; proposal: Omit<BoardLayoutProposal, 'status'> })
+  | (CommandBase & { type: 'propose-board-organization'; request: BoardOrganizationRequest })
   | (CommandBase & { type: 'review-board-layout'; proposalId: string; decision: 'approve' | 'reject' })
   | (CommandBase & { type: 'move-board-item'; itemId: string; position: Point })
   | (CommandBase & { type: 'resize-board-item'; itemId: string; width: number; height: number })
@@ -298,6 +387,9 @@ export type CommandErrorCode =
   | 'BOARD_LAYOUT_NOT_FOUND'
   | 'BOARD_LAYOUT_NOT_PENDING'
   | 'INVALID_BOARD_LAYOUT'
+  | 'INVALID_BOARD_ORGANIZATION'
+  | 'BOARD_ORGANIZATION_EMPTY'
+  | 'STALE_BOARD_ORGANIZATION'
   | 'BRIEF_LOCKED'
   | 'INVALID_CAMPAIGN_BRIEF'
   | 'CREATIVE_ROUTE_NOT_FOUND'

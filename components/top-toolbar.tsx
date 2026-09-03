@@ -2,51 +2,35 @@
 
 import type { RefObject } from 'react'
 
+import type { ProjectController, ProjectSaveStatus } from '../lib/persistence/project-controller'
 import { useUiStore } from '../stores/ui-store'
+import { ProjectSwitcher } from './persistence/project-switcher'
 
-const tools = [
-  ['select', 'Select'],
-  ['crop', 'Crop'],
-  ['color', 'Color'],
-  ['type', 'Type'],
-  ['annotate', 'Annotate'],
-] as const
-
-export function TopToolbar({ onOpenBrief, onOpenReview, briefExpanded, reviewExpanded, briefTriggerRef, reviewTriggerRef }: {
+export function TopToolbar({ onOpenBrief, onOpenReview, briefExpanded, reviewExpanded, briefTriggerRef, reviewTriggerRef, campaignName, projectController, projectStatus }: {
   onOpenBrief: () => void
   onOpenReview: () => void
   briefExpanded: boolean
   reviewExpanded: boolean
   briefTriggerRef: RefObject<HTMLButtonElement | null>
   reviewTriggerRef: RefObject<HTMLButtonElement | null>
+  campaignName: string
+  projectController?: ProjectController
+  projectStatus?: ProjectSaveStatus
 }) {
-  const activeTool = useUiStore((state) => state.activeTool)
-  const setActiveTool = useUiStore((state) => state.setActiveTool)
+  const activeWorkspaceMode = useUiStore((state) => state.activeWorkspaceMode)
 
   return (
     <header className="top-toolbar" aria-label="Iterum">
       <div className="wordmark" aria-label="Iterum">ITERUM</div>
       <span className="toolbar-divider" aria-hidden="true" />
-      <p className="toolbar-title">Paste-up proofing desk</p>
-      <nav className="tool-list" aria-label="Mechanical tools">
-        {tools.map(([id, label]) => (
-          <button
-            className={activeTool === id ? 'tool-button is-active' : 'tool-button'}
-            key={id}
-            type="button"
-            aria-pressed={activeTool === id}
-            onClick={() => setActiveTool(id)}
-          >
-            <span className={`tool-glyph tool-glyph--${id}`} aria-hidden="true" />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
+      {projectController && projectStatus
+        ? <ProjectSwitcher currentProjectName={campaignName} controller={projectController} status={projectStatus} />
+        : <p className="toolbar-title">Paste-up proofing desk</p>}
       <div className="drawer-controls" aria-label="Workspace panels">
         <button ref={briefTriggerRef} type="button" aria-controls="campaign-job-ticket" aria-expanded={briefExpanded} onClick={onOpenBrief}>Brief</button>
         <button ref={reviewTriggerRef} type="button" aria-controls="review-tray" aria-expanded={reviewExpanded} onClick={onOpenReview}>Review tray</button>
       </div>
-      <div className="view-readout"><span>View</span> Mechanical</div>
+      <div className="view-readout"><span>View</span> {activeWorkspaceMode === 'mechanical' ? 'Mechanical' : activeWorkspaceMode === 'layers' ? 'Layers' : 'History'}</div>
     </header>
   )
 }

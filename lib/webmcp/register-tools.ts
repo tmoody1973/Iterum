@@ -1,10 +1,12 @@
 import type { WebMCPTool } from '../../types/webmcp'
 import { boundsForItems, fitBounds, itemIntersectsBounds, visibleWorldBounds, viewportCenter, viewportFromCenter, type BoardViewportController } from '../board/viewport'
 import { projectBoardLayout } from '../domain/board-layout'
+import { createCreativeTerritoryProposal } from '../domain/creative-territory'
 import { extractPaletteFromImage } from '../color/browser-extraction'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
-import type { BoardLayoutProposal, BoardNoteDraft, CampaignBrief, CreativeRoute, Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
+import type { BoardLayoutProposal, BoardNoteDraft, BoardOrganizationRequest, BoardOrganizationScope, CampaignBrief, CreativeRoute, CreativeTerritoryRequest, Proposal, TypeDirection, TypefaceCandidate, WorkspaceCommand, WorkspaceState } from '../domain/types'
 import { isolateImageBackground } from '../image/isolate-background'
+import type { ProjectController } from '../persistence/project-controller'
 import { isPublicHttpUrl } from '../references/public-url'
 import { failure, success, type RegisteredTools, type ToolResponse } from './types'
 
@@ -17,6 +19,23 @@ const typefaceKeys = ['id', 'family', 'category', 'source', 'sourceLabel', 'lice
 export interface ReviewUiController {
   previewLayoutProposal(id: string | null): void
   openReview(): void
+}
+
+export type BoardDisplayMode = 'working' | 'presentation'
+
+export interface PresentationUiState {
+  mode: BoardDisplayMode
+  selectedItemId: string | null
+  previewProposalId: string | null
+  workspaceMode: 'mechanical' | 'layers' | 'history'
+  activeTool: 'select' | 'crop' | 'color' | 'type' | 'organize' | 'annotate'
+  drawers: { brief: boolean; review: boolean }
+}
+
+export interface PresentationUiController {
+  getDisplayState(): PresentationUiState
+  setDisplayMode(mode: BoardDisplayMode): void
+  preparePresentation(): void
 }
 
 function parsedTypeface(value: unknown): TypefaceCandidate | null {
@@ -88,6 +107,20 @@ const boardLayoutProperties = { type: 'object', properties: { id: { type: 'strin
 const briefProperties = { type: 'object', properties: { objective: { type: 'string', minLength: 1, maxLength: 500 }, audience: { type: 'string', minLength: 1, maxLength: 500 }, proposition: { type: 'string', minLength: 1, maxLength: 500 }, tone: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 120 }, minItems: 1, maxItems: 8 }, mandatoryAssets: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 120 }, minItems: 1, maxItems: 12 }, antiDirections: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 120 }, minItems: 1, maxItems: 12 }, schedule: { type: 'string', minLength: 1, maxLength: 160 } }, required: ['objective', 'audience', 'proposition', 'tone', 'mandatoryAssets', 'antiDirections', 'schedule'], additionalProperties: false }
 const routeFrameProperties = { type: 'object', properties: { position: pointProperties, width: { type: 'number', minimum: 260, maximum: 1200 }, height: { type: 'number', minimum: 320, maximum: 1200 } }, required: ['position', 'width', 'height'], additionalProperties: false }
 const creativeRouteProperties = { type: 'object', properties: { id: { type: 'string', minLength: 1, maxLength: 80 }, name: { type: 'string', minLength: 1, maxLength: 120 }, thesis: { type: 'string', minLength: 1, maxLength: 320 }, territory: { type: 'string', minLength: 1, maxLength: 80 }, palette: { type: 'array', items: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' }, minItems: 2, maxItems: 6 }, typography: { type: 'string', minLength: 1, maxLength: 320 }, imageTreatment: { type: 'string', minLength: 1, maxLength: 320 }, compositionPrinciples: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 120 }, minItems: 1, maxItems: 6 }, frame: routeFrameProperties }, required: ['id', 'name', 'thesis', 'territory', 'palette', 'typography', 'imageTreatment', 'compositionPrinciples', 'frame'], additionalProperties: false }
+const organizationScopeProperties = { oneOf: [
+  { type: 'object', properties: { type: { const: 'route' }, routeId: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['type', 'routeId'], additionalProperties: false },
+  { type: 'object', properties: { type: { const: 'territory' }, territory: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['type', 'territory'], additionalProperties: false },
+  { type: 'object', properties: { type: { const: 'selection' }, itemIds: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 200, uniqueItems: true } }, required: ['type', 'itemIds'], additionalProperties: false },
+  { type: 'object', properties: { type: { const: 'whole-board' } }, required: ['type'], additionalProperties: false },
+] }
+const organizationProperties = { type: 'object', properties: { id: { type: 'string', minLength: 1, maxLength: 80 }, title: { type: 'string', minLength: 1, maxLength: 120 }, scope: organizationScopeProperties, strategy: { type: 'string', enum: ['tag', 'type'] }, layout: { type: 'string', const: 'cluster-grid' }, maximumGroups: { type: 'integer', minimum: 1, maximum: 6 }, ranking: { type: 'string', enum: ['visual-weight', 'board-order'] }, briefKeywords: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 80 }, maxItems: 8 } }, required: ['id', 'title', 'scope', 'strategy', 'layout', 'maximumGroups', 'ranking'], additionalProperties: false }
+const territoryReferenceProperties = { type: 'object', properties: { itemId: { type: 'string', minLength: 1, maxLength: 80 }, contribution: { type: 'string', enum: ['image-treatment', 'composition', 'materiality'] }, annotation: { type: 'string', minLength: 1, maxLength: 240 } }, required: ['itemId', 'contribution', 'annotation'], additionalProperties: false }
+const territoryHierarchyProperties = { type: 'object', properties: { heroItemId: { type: 'string', minLength: 1, maxLength: 80 }, primaryItemIds: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 80 }, maxItems: 4, uniqueItems: true }, supportingItemIds: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 80 }, maxItems: 8, uniqueItems: true } }, required: ['heroItemId', 'primaryItemIds', 'supportingItemIds'], additionalProperties: false }
+const territoryTypographyProperties = { type: 'object', properties: { headlineItemId: { type: 'string', minLength: 1, maxLength: 80 }, bodyItemId: { type: 'string', minLength: 1, maxLength: 80 }, relationship: { type: 'string', minLength: 1, maxLength: 240 }, scaleRatio: { type: 'number', minimum: 1, maximum: 12 } }, required: ['headlineItemId', 'bodyItemId', 'relationship', 'scaleRatio'], additionalProperties: false }
+const territoryPaletteProperties = { type: 'object', properties: { hex: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' }, name: { type: 'string', minLength: 1, maxLength: 80 }, role: { type: 'string', enum: ['ground', 'accent', 'support', 'type'] } }, required: ['hex', 'name', 'role'], additionalProperties: false }
+const territoryRelationshipProperties = { type: 'object', properties: { fromItemId: { type: 'string', minLength: 1, maxLength: 80 }, toItemId: { type: 'string', minLength: 1, maxLength: 80 }, kind: { type: 'string', enum: ['contrast', 'echo', 'sequence', 'material-bridge'] }, rationale: { type: 'string', minLength: 1, maxLength: 240 } }, required: ['fromItemId', 'toItemId', 'kind', 'rationale'], additionalProperties: false }
+const territoryApplicationProperties = { type: 'object', properties: { itemId: { type: 'string', minLength: 1, maxLength: 80 }, format: { type: 'string', minLength: 1, maxLength: 80 }, caption: { type: 'string', minLength: 1, maxLength: 240 } }, required: ['itemId', 'format', 'caption'], additionalProperties: false }
+const creativeTerritoryProperties = { type: 'object', properties: { id: { type: 'string', minLength: 1, maxLength: 80 }, title: { type: 'string', minLength: 1, maxLength: 120 }, routeId: { type: 'string', minLength: 1, maxLength: 80 }, thesis: { type: 'string', minLength: 1, maxLength: 400 }, mood: { type: 'string', minLength: 1, maxLength: 180 }, density: { type: 'string', enum: ['restrained', 'balanced', 'dense'] }, groupingSignals: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 8 }, references: { type: 'array', items: territoryReferenceProperties, minItems: 2, maxItems: 3 }, hierarchy: territoryHierarchyProperties, typography: territoryTypographyProperties, palette: { type: 'array', items: territoryPaletteProperties, minItems: 3, maxItems: 5 }, relationships: { type: 'array', items: territoryRelationshipProperties, minItems: 1, maxItems: 6 }, application: territoryApplicationProperties }, required: ['id', 'title', 'routeId', 'thesis', 'mood', 'density', 'groupingSignals', 'references', 'hierarchy', 'typography', 'palette', 'relationships', 'application'], additionalProperties: false }
 const mutationProperties = { campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1 } }
 const harmonyModes = ['monochrome', 'monochrome-dark', 'monochrome-light', 'analogic', 'complement', 'analogic-complement', 'triad', 'quad'] as const
 const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value)
@@ -108,6 +141,30 @@ function parsedCreativeRoute(value: unknown): Omit<CreativeRoute, 'status'> | nu
   if (!isObject(value) || !hasExactKeys(value, ['id', 'name', 'thesis', 'territory', 'palette', 'typography', 'imageTreatment', 'compositionPrinciples', 'frame']) || typeof value.id !== 'string' || !value.id.trim() || value.id.length > 80 || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120 || typeof value.thesis !== 'string' || !value.thesis.trim() || value.thesis.length > 320 || typeof value.territory !== 'string' || !value.territory.trim() || value.territory.length > 80 || !Array.isArray(value.palette) || value.palette.length < 2 || value.palette.length > 6 || !value.palette.every(isHex) || typeof value.typography !== 'string' || !value.typography.trim() || value.typography.length > 320 || typeof value.imageTreatment !== 'string' || !value.imageTreatment.trim() || value.imageTreatment.length > 320 || !isObject(value.frame) || !hasExactKeys(value.frame, ['position', 'width', 'height']) || !finitePoint(value.frame.position) || typeof value.frame.width !== 'number' || !Number.isFinite(value.frame.width) || typeof value.frame.height !== 'number' || !Number.isFinite(value.frame.height)) return null
   const compositionPrinciples = parsedStringList(value.compositionPrinciples, 6)
   return compositionPrinciples ? { id: value.id.trim(), name: value.name.trim(), thesis: value.thesis.trim(), territory: value.territory.trim(), palette: value.palette as string[], typography: value.typography.trim(), imageTreatment: value.imageTreatment.trim(), compositionPrinciples, frame: { position: value.frame.position, width: value.frame.width, height: value.frame.height } } : null
+}
+
+function parsedOrganizationScope(value: unknown): BoardOrganizationScope | null {
+  if (!isObject(value) || typeof value.type !== 'string') return null
+  if (value.type === 'route' && hasExactKeys(value, ['type', 'routeId']) && typeof value.routeId === 'string' && value.routeId.trim() && value.routeId.length <= 80) return { type: 'route', routeId: value.routeId.trim() }
+  if (value.type === 'territory' && hasExactKeys(value, ['type', 'territory']) && typeof value.territory === 'string' && value.territory.trim() && value.territory.length <= 80) return { type: 'territory', territory: value.territory.trim() }
+  if (value.type === 'selection' && hasExactKeys(value, ['type', 'itemIds']) && Array.isArray(value.itemIds) && value.itemIds.length >= 1 && value.itemIds.length <= 200 && value.itemIds.every((id) => typeof id === 'string' && id.length >= 1 && id.length <= 80) && new Set(value.itemIds).size === value.itemIds.length) return { type: 'selection', itemIds: value.itemIds as string[] }
+  if (value.type === 'whole-board' && hasExactKeys(value, ['type'])) return { type: 'whole-board' }
+  return null
+}
+
+function parsedBoardOrganization(value: unknown): BoardOrganizationRequest | null {
+  if (!isObject(value) || !hasExactKeys(value, ['id', 'title', 'scope', 'strategy', 'layout', 'maximumGroups', 'ranking', 'briefKeywords']) || typeof value.id !== 'string' || !value.id.trim() || value.id.length > 80 || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 120 || !['tag', 'type'].includes(String(value.strategy)) || value.layout !== 'cluster-grid' || !Number.isInteger(value.maximumGroups) || Number(value.maximumGroups) < 1 || Number(value.maximumGroups) > 6 || !['visual-weight', 'board-order'].includes(String(value.ranking)) || (value.briefKeywords !== undefined && (!Array.isArray(value.briefKeywords) || value.briefKeywords.length > 8 || !value.briefKeywords.every((keyword) => typeof keyword === 'string' && keyword.trim().length >= 1 && keyword.length <= 80)))) return null
+  const scope = parsedOrganizationScope(value.scope)
+  if (!scope) return null
+  return { id: value.id.trim(), title: value.title.trim(), scope, strategy: value.strategy as BoardOrganizationRequest['strategy'], layout: 'cluster-grid', maximumGroups: Number(value.maximumGroups), ranking: value.ranking as BoardOrganizationRequest['ranking'], ...(Array.isArray(value.briefKeywords) ? { briefKeywords: value.briefKeywords.map((keyword) => String(keyword).trim()) } : {}) }
+}
+
+function parsedCreativeTerritory(value: unknown): CreativeTerritoryRequest | null {
+  const keys = ['id', 'title', 'routeId', 'thesis', 'mood', 'density', 'groupingSignals', 'references', 'hierarchy', 'typography', 'palette', 'relationships', 'application']
+  if (!isObject(value) || !hasExactKeys(value, keys) || !Array.isArray(value.groupingSignals) || !Array.isArray(value.references) || !Array.isArray(value.palette) || !Array.isArray(value.relationships) || !isObject(value.hierarchy) || !isObject(value.typography) || !isObject(value.application)) return null
+  if (!hasExactKeys(value.hierarchy, ['heroItemId', 'primaryItemIds', 'supportingItemIds']) || !hasExactKeys(value.typography, ['headlineItemId', 'bodyItemId', 'relationship', 'scaleRatio']) || !hasExactKeys(value.application, ['itemId', 'format', 'caption'])) return null
+  if (value.references.some((entry) => !isObject(entry) || !hasExactKeys(entry, ['itemId', 'contribution', 'annotation'])) || value.palette.some((entry) => !isObject(entry) || !hasExactKeys(entry, ['hex', 'name', 'role'])) || value.relationships.some((entry) => !isObject(entry) || !hasExactKeys(entry, ['fromItemId', 'toItemId', 'kind', 'rationale']))) return null
+  return value as unknown as CreativeTerritoryRequest
 }
 
 async function responseJson(response: Response) {
@@ -131,13 +188,13 @@ function viewportAvailable(controller: BoardViewportController | undefined): con
   return Number.isFinite(size.width) && Number.isFinite(size.height) && size.width > 0 && size.height > 0
 }
 
-export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController(), viewportController?: BoardViewportController, reviewUi?: ReviewUiController): Promise<RegisteredTools | null> {
+export async function registerIterumTools(runtime: WorkspaceRuntime, controller = new AbortController(), viewportController?: BoardViewportController, reviewUi?: ReviewUiController, presentationUi?: PresentationUiController, projectController?: ProjectController): Promise<RegisteredTools | null> {
   if (!document.modelContext) return null
   const tools: WebMCPTool[] = [
     {
       name: 'get_campaign_context', title: 'Read campaign context', description: 'Read the current Iterum campaign, board version, proposal queue, placement policy, and recent receipts without making changes.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, creativeRoutes: state.creativeRoutes, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, layoutProposals: state.layoutProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8), productBoundary: 'Single-session direction workspace. Persistent projects, generated applications, and presentation export are not implemented yet.' }, `Read ${state.campaign.name} at board version ${state.version}.`) },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.'); return success(state, { campaign: state.campaign, creativeRoutes: state.creativeRoutes, placementPolicy: state.placementPolicy, colorPalette: state.colorPalette, typeDirection: state.typeDirection, typeProposals: state.typeProposals, layoutProposals: state.layoutProposals, proposals: state.proposals, receipts: state.receipts.slice(0, 8), persistence: projectController ? projectController.getStatus() : null, productBoundary: projectController ? 'Convex cloud persistence, autosave, immutable snapshots, and recovery are active. Generated applications and presentation export remain future work.' : 'This fixture is intentionally session-only. Open a cloud project for persistence and recovery.' }, `Read ${state.campaign.name} at board version ${state.version}.`) },
     },
     {
       name: 'update_campaign_brief', title: 'Structure the campaign brief', description: 'Update the current draft brief with explicit objective, audience, proposition, tone, mandatories, anti-directions, and schedule. A locked brief cannot be changed.',
@@ -158,6 +215,57 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       name: 'request_creative_route_decision', title: 'Request route decision', description: 'Return one pending creative route for designer approval or rejection without making the decision.',
       inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, routeId: { type: 'string', minLength: 1 } }, required: ['campaignId', 'boardId', 'routeId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: (input) => { const state = runtime.getSnapshot(); if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'routeId']) || input.campaignId !== state.campaign.id || input.boardId !== state.campaign.boardId || typeof input.routeId !== 'string') return invalid(state, 'Provide the open campaign and one routeId.'); const route = state.creativeRoutes.find((candidate) => candidate.id === input.routeId); if (!route) return failure(state, 'CREATIVE_ROUTE_NOT_FOUND', 'The creative route no longer exists.'); return success(state, { route, requiresDesignerApproval: route.status === 'pending' }, route.status === 'pending' ? `Creative route “${route.name}” is awaiting designer review.` : `Creative route “${route.name}” is ${route.status}.`) },
+    },
+    {
+      name: 'get_board_display_mode', title: 'Read the board display mode', description: 'Read whether the local Iterum workspace is in explanatory Working mode or client-facing Present mode, including open drawers and transient selection state. This never changes canonical board data.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
+        if (!presentationUi) return failure(state, 'PRESENTATION_UI_UNAVAILABLE', 'The board display controls are not mounted yet.', true)
+        const display = presentationUi.getDisplayState()
+        return success(state, { ...display, canonicalStateChanged: false }, `The board is in ${display.mode === 'working' ? 'Working' : 'Present'} mode.`)
+      },
+    },
+    {
+      name: 'set_board_display_mode', title: 'Set the board display mode', description: 'Switch the local Iterum workspace between explanatory Working mode and client-facing Present mode. This changes only transient presentation state and never changes board content, approvals, versions, or receipts.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, mode: { type: 'string', enum: ['working', 'presentation'] } }, required: ['campaignId', 'boardId', 'mode'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'mode']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || !['working', 'presentation'].includes(String(input.mode))) return invalid(state, 'Provide the open campaign and mode working or presentation.')
+        if (!presentationUi) return failure(state, 'PRESENTATION_UI_UNAVAILABLE', 'The board display controls are not mounted yet.', true)
+        presentationUi.setDisplayMode(input.mode as BoardDisplayMode)
+        return success(state, { ...presentationUi.getDisplayState(), canonicalStateChanged: false }, `Switched the board to ${input.mode === 'working' ? 'Working' : 'Present'} mode.`, undefined, true)
+      },
+    },
+    {
+      name: 'prepare_direction_presentation', title: 'Prepare an approved direction for presentation', description: 'Prepare one explicitly approved creative route for client review: close drawers, clear selections and previews, return to the Mechanical surface, fit that territory, and enter Present mode. This changes only transient presentation state.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, routeId: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['campaignId', 'boardId', 'routeId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'routeId']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.routeId !== 'string' || !input.routeId.trim() || input.routeId.length > 80) return invalid(state, 'Provide the open campaign and one explicit approved routeId.')
+        if (!presentationUi) return failure(state, 'PRESENTATION_UI_UNAVAILABLE', 'The board display controls are not mounted yet.', true)
+        if (!viewportAvailable(viewportController)) return failure(state, 'VIEWPORT_UNAVAILABLE', 'The board viewport is not mounted yet.', true)
+        const route = state.creativeRoutes.find((candidate) => candidate.id === input.routeId)
+        if (!route) return failure(state, 'CREATIVE_ROUTE_NOT_FOUND', 'The creative route no longer exists.')
+        if (route.status !== 'approved') return failure(state, 'CREATIVE_ROUTE_NOT_APPROVED', `Creative route “${route.name}” must be approved by the designer before presentation.`)
+        const territory = route.territory.trim().toLocaleLowerCase()
+        const items = state.boardItems.filter((item) => item.territory.trim().toLocaleLowerCase() === territory)
+        if (items.length === 0) return failure(state, 'APPROVED_TERRITORY_EMPTY', `Approved route “${route.name}” has no board items to present.`)
+        presentationUi.preparePresentation()
+        viewportController.setViewport(fitBounds(boundsForItems(items, true), viewportController.getViewportSize()), 'fit')
+        const itemsByKind = items.reduce<Record<string, number>>((counts, item) => ({ ...counts, [item.kind]: (counts[item.kind] ?? 0) + 1 }), {})
+        return success(state, {
+          route: { id: route.id, name: route.name, territory: route.territory, thesis: route.thesis, status: route.status },
+          presentation: { ...presentationUi.getDisplayState(), canonicalStateChanged: false },
+          includedItems: items.map((item) => ({ id: item.id, title: item.title, kind: item.kind, hierarchyRole: item.hierarchyRole })),
+          itemsByKind,
+          heroItems: items.filter((item) => item.hierarchyRole === 'hero').map((item) => ({ id: item.id, title: item.title })),
+          palette: state.colorPalette.pinned,
+          typography: state.typeDirection ? { headline: state.typeDirection.headline.family, body: state.typeDirection.body.family, specimenText: state.typeDirection.specimenText } : null,
+          viewport: viewportPayload(state, viewportController),
+        }, `Prepared approved direction “${route.name}” in Present mode with ${items.length} items.`, undefined, true)
+      },
     },
     {
       name: 'get_board_viewport', title: 'Read the board viewport', description: 'Read the current presentation-only board zoom, center, mechanical bounds, visible world bounds, and visible items without changing the canonical board.',
@@ -214,7 +322,91 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       execute: (input) => {
         const state = runtime.getSnapshot()
         if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
-        return success(state, { items: state.boardItems.map((item) => ({ id: item.id, title: item.title, kind: item.kind, territory: item.territory, groupId: item.groupId, groupLabel: item.groupLabel, locked: item.locked, position: item.position, width: item.width, height: item.height, noteBody: item.noteBody, noteTone: item.noteTone })), pendingDirectionDrafts: state.layoutProposals.filter((proposal) => proposal.status === 'pending').map((proposal) => ({ id: proposal.id, title: proposal.title, changes: proposal.changes.length + proposal.notes.length })) }, `Read ${state.boardItems.length} board items.`)
+        return success(state, { items: state.boardItems.map((item) => ({ id: item.id, title: item.title, kind: item.kind, territory: item.territory, groupId: item.groupId, groupLabel: item.groupLabel, hierarchyRole: item.hierarchyRole, hierarchyConfidence: item.hierarchyConfidence, locked: item.locked, position: item.position, width: item.width, height: item.height, noteBody: item.noteBody, noteTone: item.noteTone })), pendingDirectionDrafts: state.layoutProposals.filter((proposal) => proposal.status === 'pending').map((proposal) => ({ id: proposal.id, title: proposal.title, changes: proposal.changes.length + proposal.notes.length, isOrganizationProposal: Boolean(proposal.organization) })) }, `Read ${state.boardItems.length} board items.`)
+      },
+    },
+    {
+      name: 'get_board_structure', title: 'Read board structure', description: 'Read creative routes, approved groups and hierarchy roles, unresolved organization items, and stored organization proposals without changing the board.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'campaignId and boardId are the only accepted fields for the open campaign.')
+        const groupIds = [...new Set(state.boardItems.map((item) => item.groupId).filter(Boolean) as string[])]
+        const organizationProposals = state.layoutProposals.flatMap((proposal) => proposal.organization ? [{ proposalId: proposal.id, title: proposal.title, status: proposal.status, ...proposal.organization }] : [])
+        return success(state, {
+          routes: state.creativeRoutes.map((route) => ({ id: route.id, name: route.name, territory: route.territory, status: route.status, frame: route.frame })),
+          groups: groupIds.map((groupId) => ({ id: groupId, label: state.boardItems.find((item) => item.groupId === groupId)?.groupLabel ?? groupId, items: state.boardItems.filter((item) => item.groupId === groupId).map((item) => ({ id: item.id, title: item.title, role: item.hierarchyRole, confidence: item.hierarchyConfidence })) })),
+          ungroupedItems: state.boardItems.filter((item) => !item.groupId).map((item) => ({ id: item.id, title: item.title, territory: item.territory, locked: item.locked })),
+          unresolvedItems: organizationProposals.filter((proposal) => proposal.status === 'pending').flatMap((proposal) => proposal.unresolvedItems.map((entry) => ({ proposalId: proposal.proposalId, ...entry }))),
+          organizationProposals,
+        }, `Read ${groupIds.length} approved groups and ${organizationProposals.length} organization proposals.`)
+      },
+    },
+    {
+      name: 'propose_board_organization', title: 'Propose board organization', description: 'Create an immutable, deterministic organization proposal for one explicit route, territory, selection, or whole-board scope. It never changes the live board and cannot approve its own proposal.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, organization: organizationProperties }, required: [...requiredMutation, 'organization'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'organization'])) return invalid(state, 'organization is the only additional accepted field.')
+        const request = parsedBoardOrganization(checked.value.organization)
+        if (!request) return invalid(state, 'Provide a strict organization request with an explicit scope, tag or type grouping, cluster-grid layout, group limit, and ranking method.')
+        const result = runtime.dispatch({ type: 'propose-board-organization', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', request })
+        if (!result.ok) return failure(result.state, result.error.code, result.error.message, result.error.code === 'VERSION_CONFLICT')
+        const proposal = result.state.layoutProposals.find((candidate) => candidate.id === request.id)
+        return success(result.state, { proposalId: request.id, baselineBoardVersion: proposal?.organization?.baselineBoardVersion, groups: proposal?.organization?.groups ?? [], unresolvedItems: proposal?.organization?.unresolvedItems ?? [], untouchedLockedItemIds: proposal?.organization?.untouchedLockedItemIds ?? [], requiresDesignerApproval: true }, result.receipt.summary, result.receipt)
+      },
+    },
+    {
+      name: 'propose_creative_territory', title: 'Compose a creative territory', description: 'Turn one route into a reviewable art-direction system: thesis, mood, reference contributions, explicit hierarchy, type relationship, role-based palette, reference relationships, and one campaign application. It opens a collision-safe preview but cannot approve it.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, territory: creativeTerritoryProperties }, required: [...requiredMutation, 'territory'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'territory'])) return invalid(state, 'territory is the only additional accepted field.')
+        const request = parsedCreativeTerritory(checked.value.territory)
+        if (!request) return invalid(state, 'Provide one strict creative territory with thesis, mood, references, hierarchy, typography, palette, relationships, and an application.')
+        const generated = createCreativeTerritoryProposal(state, request)
+        if (!generated.ok) return failure(state, generated.code, generated.message)
+        const result = runtime.dispatch({ type: 'propose-board-layout', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', proposal: generated.proposal })
+        if (!result.ok) return failure(result.state, result.error.code, result.error.message, result.error.code === 'VERSION_CONFLICT')
+        const proposal = result.state.layoutProposals.find((candidate) => candidate.id === request.id)!
+        const changedIds = new Set(proposal.changes.map((change) => change.itemId))
+        const projectedItems = projectBoardLayout(result.state.boardItems, proposal).filter((item) => changedIds.has(item.id))
+        reviewUi?.previewLayoutProposal(proposal.id); reviewUi?.openReview()
+        if (viewportAvailable(viewportController) && projectedItems.length) viewportController.setViewport(fitBounds(boundsForItems(projectedItems), viewportController.getViewportSize(), 64), 'custom')
+        return success(result.state, { proposalId: proposal.id, creativeTerritory: proposal.creativeTerritory, projectedItems: projectedItems.map((item) => ({ id: item.id, position: item.position, width: item.width, height: item.height, hierarchyRole: item.hierarchyRole })), requiresDesignerApproval: true }, result.receipt.summary, result.receipt, Boolean(reviewUi || viewportController))
+      },
+    },
+    {
+      name: 'preview_board_organization', title: 'Preview board organization', description: 'Open one pending organization proposal as a ghost arrangement, focus its affected region, and place it at the designer review boundary without changing canonical board data.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, proposalId: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['campaignId', 'boardId', 'proposalId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'proposalId']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.proposalId !== 'string' || !input.proposalId) return invalid(state, 'Provide the open campaign and one organization proposal ID.')
+        const proposal = state.layoutProposals.find((candidate) => candidate.id === input.proposalId && candidate.organization)
+        if (!proposal?.organization) return failure(state, 'BOARD_LAYOUT_NOT_FOUND', 'The organization proposal no longer exists.')
+        if (proposal.status !== 'pending') return failure(state, 'BOARD_LAYOUT_NOT_PENDING', 'Only pending organization proposals can be previewed.')
+        if (state.version !== proposal.organization.baselineBoardVersion + 1) return failure(state, 'STALE_BOARD_ORGANIZATION', 'The board changed after this organization proposal was created. Generate a fresh preview.')
+        const ids = new Set(proposal.changes.map((change) => change.itemId))
+        const projectedItems = projectBoardLayout(state.boardItems, proposal).filter((item) => ids.has(item.id))
+        reviewUi?.previewLayoutProposal(proposal.id); reviewUi?.openReview()
+        if (viewportAvailable(viewportController) && projectedItems.length) viewportController.setViewport(fitBounds(boundsForItems(projectedItems), viewportController.getViewportSize(), 64), 'custom')
+        return success(state, { proposalId: proposal.id, groups: proposal.organization.groups, assignments: proposal.organization.assignments, unresolvedItems: proposal.organization.unresolvedItems, untouchedLockedItemIds: proposal.organization.untouchedLockedItemIds, projectedItems: projectedItems.map((item) => ({ id: item.id, position: item.position, width: item.width, height: item.height, groupId: item.groupId, hierarchyRole: item.hierarchyRole })) }, `Previewing organization proposal “${proposal.title}”.`, undefined, Boolean(reviewUi || viewportController))
+      },
+    },
+    {
+      name: 'explain_board_group', title: 'Explain a board group', description: 'Explain why one proposed or approved group exists, which reference is the hero, hierarchy roles, confidence, and weak matches without changing the board.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' }, groupId: { type: 'string', minLength: 1, maxLength: 120 }, proposalId: { type: 'string', minLength: 1, maxLength: 80 } }, required: ['campaignId', 'boardId', 'groupId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['campaignId', 'boardId', 'groupId', 'proposalId']) || !validContext(state, { campaignId: input.campaignId, boardId: input.boardId }) || typeof input.groupId !== 'string' || !input.groupId || (input.proposalId !== undefined && (typeof input.proposalId !== 'string' || !input.proposalId))) return invalid(state, 'Provide the open campaign, a group ID, and optionally its organization proposal ID.')
+        const proposal = typeof input.proposalId === 'string' ? state.layoutProposals.find((candidate) => candidate.id === input.proposalId && candidate.organization) : state.layoutProposals.find((candidate) => candidate.organization?.groups.some((group) => group.id === input.groupId))
+        const proposedGroup = proposal?.organization?.groups.find((group) => group.id === input.groupId)
+        if (proposedGroup && proposal?.organization) return success(state, { state: proposal.status, proposalId: proposal.id, group: proposedGroup, assignments: proposal.organization.assignments.filter((assignment) => assignment.groupId === proposedGroup.id).map((assignment) => ({ ...assignment, itemTitle: state.boardItems.find((item) => item.id === assignment.itemId)?.title ?? assignment.itemId })), weakMatches: proposal.organization.unresolvedItems }, `Explained proposed group “${proposedGroup.label}”.`)
+        const approvedItems = state.boardItems.filter((item) => item.groupId === input.groupId)
+        if (!approvedItems.length) return failure(state, 'BOARD_ITEM_NOT_FOUND', 'No proposed or approved board group matches that ID.')
+        return success(state, { state: 'approved', group: { id: input.groupId, label: approvedItems[0].groupLabel ?? input.groupId }, assignments: approvedItems.map((item) => ({ itemId: item.id, itemTitle: item.title, role: item.hierarchyRole, confidence: item.hierarchyConfidence })) }, `Explained approved group “${approvedItems[0].groupLabel ?? input.groupId}”.`)
       },
     },
     {
@@ -446,6 +638,75 @@ export async function registerIterumTools(runtime: WorkspaceRuntime, controller 
       execute: (input) => { const state = runtime.getSnapshot(); const checked = mutationInput(state, input); if ('response' in checked) return checked.response; if (!hasExactKeys(checked.value, [...requiredMutation, 'receiptId']) || typeof checked.value.receiptId !== 'string' || !checked.value.receiptId) return invalid(state, 'receiptId is required.'); const receipt = state.receipts.find((entry) => entry.id === checked.value.receiptId); if (receipt && receipt.actor !== 'agent') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'An agent can only undo its own action receipts.'); return execute(runtime, { type: 'undo-receipt', campaignId: checked.value.campaignId as string, boardId: checked.value.boardId as string, expectedVersion: checked.value.expectedBoardVersion as number, idempotencyKey: checked.value.idempotencyKey as string, actor: 'agent', receiptId: checked.value.receiptId }) },
     },
   ]
+  if (projectController) tools.unshift(
+    {
+      name: 'list_campaign_projects', title: 'List Iterum projects', description: 'List the designer’s recent cloud-backed Iterum projects with current board and persistence revisions.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, [])) return invalid(state, 'This tool accepts no fields.')
+        try { const projects = await projectController.listProjects(); return success(state, { projects }, `Found ${projects.length} cloud project${projects.length === 1 ? '' : 's'}.`) }
+        catch (error) { return failure(state, 'PERSISTENCE_UNAVAILABLE', error instanceof Error ? error.message : 'Projects could not be listed.', true) }
+      },
+    },
+    {
+      name: 'create_campaign_project', title: 'Create a blank campaign project', description: 'Create a genuinely blank, cloud-backed campaign project from a name and objective. It creates no references, routes, palette, typography, or applications.',
+      inputSchema: { type: 'object', properties: { name: { type: 'string', minLength: 1, maxLength: 120 }, objective: { type: 'string', minLength: 1, maxLength: 500 }, idempotencyKey: { type: 'string', minLength: 1, maxLength: 120 } }, required: ['name', 'objective', 'idempotencyKey'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['name', 'objective', 'idempotencyKey']) || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120 || typeof input.objective !== 'string' || !input.objective.trim() || input.objective.length > 500 || typeof input.idempotencyKey !== 'string' || !input.idempotencyKey || input.idempotencyKey.length > 120) return invalid(state, 'Provide a campaign name, objective, and stable idempotency key.')
+        try { const project = await projectController.createProject({ name: input.name.trim(), objective: input.objective.trim(), idempotencyKey: input.idempotencyKey }); return success(state, { project, openWith: { tool: 'open_campaign_project', projectKey: project.projectKey } }, `Created blank cloud project “${project.name}”.`) }
+        catch (error) { return failure(state, 'PROJECT_CREATE_FAILED', error instanceof Error ? error.message : 'The project could not be created.', true) }
+      },
+    },
+    {
+      name: 'open_campaign_project', title: 'Open an Iterum project', description: 'Navigate the visible Iterum workspace to an existing cloud project. This changes the current page but does not modify campaign content.',
+      inputSchema: { type: 'object', properties: { projectKey: { type: 'string', minLength: 3, maxLength: 80, pattern: '^[a-z0-9][a-z0-9-]+[a-z0-9]$' } }, required: ['projectKey'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: (input) => {
+        const state = runtime.getSnapshot()
+        if (!isObject(input) || !hasExactKeys(input, ['projectKey']) || typeof input.projectKey !== 'string' || !/^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(input.projectKey)) return invalid(state, 'Provide one valid projectKey.')
+        projectController.openProject(input.projectKey)
+        return success(state, { projectKey: input.projectKey, canonicalStateChanged: false }, `Opening cloud project ${input.projectKey}.`, undefined, true)
+      },
+    },
+    {
+      name: 'get_project_save_status', title: 'Read project save status', description: 'Read whether the open project is loading, saving, saved, conflicted, or unavailable without changing it.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: (input) => { const state = runtime.getSnapshot(); if (!validContext(state, input)) return invalid(state, 'Provide the open campaignId and boardId.'); const status = projectController.getStatus(); return success(state, status, status.message) },
+    },
+    {
+      name: 'create_board_snapshot', title: 'Create a board version', description: 'Flush pending autosave work, then create an immutable, named recovery point for the open board.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, label: { type: 'string', minLength: 1, maxLength: 120 } }, required: [...requiredMutation, 'label'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'label']) || checked.value.expectedBoardVersion !== state.version || typeof checked.value.label !== 'string' || !checked.value.label.trim() || checked.value.label.length > 120) return invalid(state, 'Provide the current board version, a stable idempotency key, and a short version label.')
+        try { const version = await projectController.createVersion(checked.value.label.trim(), 'agent', checked.value.idempotencyKey as string); return success(runtime.getSnapshot(), { version }, `Created immutable board version “${version.label}”.`) }
+        catch (error) { return failure(runtime.getSnapshot(), 'SNAPSHOT_FAILED', error instanceof Error ? error.message : 'The board version could not be created.', true) }
+      },
+    },
+    {
+      name: 'list_board_versions', title: 'List board versions', description: 'List immutable snapshots and restores for the open cloud project.',
+      inputSchema: { type: 'object', properties: { campaignId: { type: 'string' }, boardId: { type: 'string' } }, required: ['campaignId', 'boardId'], additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute: async (input) => {
+        const state = runtime.getSnapshot()
+        if (!validContext(state, input)) return invalid(state, 'Provide the open campaignId and boardId.')
+        try { const versions = await projectController.listVersions(); return success(state, { versions }, `Found ${versions.length} recovery point${versions.length === 1 ? '' : 's'} for this project.`) }
+        catch (error) { return failure(state, 'VERSIONS_UNAVAILABLE', error instanceof Error ? error.message : 'Board versions could not be listed.', true) }
+      },
+    },
+    {
+      name: 'restore_board_version', title: 'Restore a board version', description: 'Restore one immutable version as a new project head. The current head remains in history; version numbers never move backward.',
+      inputSchema: { type: 'object', properties: { ...mutationProperties, versionId: { type: 'string', minLength: 1 } }, required: [...requiredMutation, 'versionId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true },
+      execute: async (input) => {
+        const state = runtime.getSnapshot(); const checked = mutationInput(state, input)
+        if ('response' in checked) return checked.response
+        if (!hasExactKeys(checked.value, [...requiredMutation, 'versionId']) || checked.value.expectedBoardVersion !== state.version || typeof checked.value.versionId !== 'string' || !checked.value.versionId) return invalid(state, 'Provide the current board version, one versionId, and a stable idempotency key.')
+        try { const restored = await projectController.restoreVersion(checked.value.versionId, 'agent', checked.value.idempotencyKey as string); return success(restored.state, { restoredVersionId: checked.value.versionId, saveStatus: restored.status }, `Restored ${checked.value.versionId} as board version ${restored.state.version}.`, undefined, true) }
+        catch (error) { return failure(runtime.getSnapshot(), 'RESTORE_FAILED', error instanceof Error ? error.message : 'The board version could not be restored.', true) }
+      },
+    },
+  )
   try { for (const tool of tools) await document.modelContext.registerTool(tool, { signal: controller.signal }) } catch (error) { controller.abort(); throw error }
   return { controller, count: tools.length }
 }

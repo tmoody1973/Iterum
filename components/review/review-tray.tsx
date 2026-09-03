@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { LockKeyhole, Scissors, X } from 'lucide-react'
 
 import type { WorkspaceRuntime } from '../../lib/domain/workspace-runtime'
@@ -8,7 +8,6 @@ import type { Point, Proposal, WorkspaceState } from '../../lib/domain/types'
 import { isolateImageBackground } from '../../lib/image/isolate-background'
 import { useUiStore } from '../../stores/ui-store'
 import { ProposalCard } from './proposal-card'
-import { ActionReceipt } from './action-receipt'
 import { ReferenceCapturePanel } from './reference-capture-panel'
 import { ReferenceLibrary } from './reference-library'
 import { TypeDirectionCard } from '../typography/type-direction-card'
@@ -28,7 +27,6 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
   const setWebClipMessage = useUiStore((state) => state.setWebClipMessage)
   const previewLayoutProposalId = useUiStore((state) => state.previewLayoutProposalId)
   const setPreviewLayoutProposal = useUiStore((state) => state.setPreviewLayoutProposal)
-  const [isPhone, setIsPhone] = useState(false)
   const [isolatingId, setIsolatingId] = useState<string | null>(null)
   const [isolationMessage, setIsolationMessage] = useState('')
   const pending = snapshot.proposals.filter((proposal) => proposal.status === 'pending')
@@ -50,14 +48,6 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
     const result = runtime.dispatch({ type: 'set-proposal-isolation', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId: proposal.id, isolation: null })
     setIsolationMessage(result.ok ? result.receipt.summary : result.error.message)
   }
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return
-    const media = window.matchMedia('(max-width: 760px)')
-    const sync = () => setIsPhone(media.matches)
-    sync()
-    media.addEventListener('change', sync)
-    return () => media.removeEventListener('change', sync)
-  }, [])
   const routeDecision = (routeId: string, decision: 'approve' | 'reject') => runtime.dispatch({ type: 'review-creative-route', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', routeId, decision })
   const layoutDecision = (proposalId: string, decision: 'approve' | 'reject') => {
     const result = runtime.dispatch({ type: 'review-board-layout', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', proposalId, decision })
@@ -77,7 +67,6 @@ export function ReviewTray({ snapshot, runtime, onClose, proposalPlacement }: { 
         {pending.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} placement={proposalPlacement} onApprove={() => proposalCommand(runtime, snapshot, proposal, 'approve-proposal', proposalPlacement)} onReject={() => proposalCommand(runtime, snapshot, proposal, 'reject-proposal')} onIsolate={() => isolateProposal(proposal)} onRestore={() => restoreProposal(proposal)} isIsolating={isolatingId === proposal.id} />)}
       </div> : <p className="activity-empty">No pending proposals. Use research to add sourced references or compose a reviewable Direction Draft.</p>}
     </> : activeRightTab === 'capture' ? <ReferenceCapturePanel snapshot={snapshot} runtime={runtime} onProposed={() => setActiveRightTab('review')} /> : activeRightTab === 'library' ? <ReferenceLibrary snapshot={snapshot} runtime={runtime} /> : <div className="activity-log">{snapshot.receipts.length ? snapshot.receipts.map((receipt) => <p key={receipt.id}><strong>V{String(receipt.version).padStart(2, '0')}</strong> {receipt.summary}</p>) : <p className="activity-empty">No agent activity has changed this mechanical.</p>}</div>}
-    {isPhone && <div className="mobile-action-receipt"><ActionReceipt receipt={snapshot.receipts[0]} runtime={runtime} /></div>}
     <section className="agent-note"><h3>Review boundary</h3><p>Agent-found references, creative routes, and Direction Draft arrangements stay in review until you approve them.</p></section>
     <footer><LockKeyhole aria-hidden="true" />Designer review control</footer>
   </aside>

@@ -10,6 +10,13 @@ import { useUiStore } from '../../stores/ui-store'
 afterEach(cleanup)
 
 describe('review flow', () => {
+  it('does not render an empty action receipt', () => {
+    const runtime = createWorkspaceRuntime(createDemoWorkspaceState())
+    render(<ActionReceipt runtime={runtime} />)
+    expect(screen.queryByRole('region', { name: 'Latest action receipt' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/no action receipt yet/i)).not.toBeInTheDocument()
+  })
+
   it('approves, places exactly once, records a receipt, and compensates through Undo', () => {
     const runtime = createWorkspaceRuntime(createDemoWorkspaceState())
     const view = render(<><ReviewTray runtime={runtime} snapshot={runtime.getSnapshot()} /><ActionReceipt runtime={runtime} /></>)

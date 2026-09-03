@@ -4,6 +4,21 @@ import { createDemoWorkspaceState } from './demo-data'
 import { createWorkspaceRuntime } from './workspace-runtime'
 
 describe('WorkspaceRuntime', () => {
+  it('hydrates a persisted snapshot without changing runtime identity', () => {
+    const initial = createDemoWorkspaceState()
+    const runtime = createWorkspaceRuntime(initial)
+    const listener = vi.fn()
+    runtime.subscribe(listener)
+    const persisted = { ...initial, version: initial.version + 4, campaign: { ...initial.campaign, name: 'Recovered campaign' } }
+
+    runtime.replaceSnapshot(persisted)
+
+    expect(runtime.getSnapshot()).toBe(persisted)
+    expect(listener).toHaveBeenCalledOnce()
+    runtime.replaceSnapshot(persisted)
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
   it('keeps the canonical snapshot and only notifies after successful changes', () => {
     const initial = createDemoWorkspaceState()
     const runtime = createWorkspaceRuntime(initial)

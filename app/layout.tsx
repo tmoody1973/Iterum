@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { ConvexClientProvider } from '../components/convex-client-provider'
 import './globals.css'
 
 const DIRECTION_CONTRACT = `THESIS: Iterum turns sourced agent proposals into designer-approved, reversible paste-up; it refuses the generic infinite whiteboard with a chatbot beside it.
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <DirectionContractMarker />
-        {children}
+        <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>
   )
