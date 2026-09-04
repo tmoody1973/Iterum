@@ -37,6 +37,16 @@ function setup() {
   return { runtime, imageGeneration, openReview, tools }
 }
 
+function reviewerApproval(quoteFingerprint: string, generationIdempotencyKey: string) {
+  return {
+    accepted: true as const,
+    quoteFingerprint,
+    generationIdempotencyKey,
+    proposerSessionId: 'creative-session',
+    reviewerSessionId: 'reviewer-session',
+  }
+}
+
 beforeEach(() => vi.restoreAllMocks())
 afterEach(() => { delete document.modelContext })
 
@@ -63,7 +73,7 @@ describe('image generation WebMCP tools', () => {
     expect(quote).toMatchObject({ ok: true, boardVersion: 18, data: { generationStarted: false, quote: { imageCount: 2, estimatedOutputUsd: 0.106, requiresCostApproval: true } } })
     expect(imageGeneration.execute).not.toHaveBeenCalled()
 
-    const generated = await tool.execute({ ...request, costApproval: { accepted: true, quoteFingerprint: quote.data.quote.quoteFingerprint } }, { signal: new AbortController().signal }) as any
+    const generated = await tool.execute({ ...request, costApproval: reviewerApproval(quote.data.quote.quoteFingerprint, request.idempotencyKey) }, { signal: new AbortController().signal }) as any
     expect(generated).toMatchObject({ ok: true, boardVersion: 20, data: { requiresDesignerApproval: true } })
     expect(runtime.getSnapshot().proposals.filter((proposal) => proposal.generation?.origin === 'generated')).toHaveLength(2)
     expect(runtime.getSnapshot().boardItems).toHaveLength(8)
@@ -91,7 +101,7 @@ describe('image generation WebMCP tools', () => {
     const edit = tools.find((entry) => entry.name === 'edit_image_candidate')!
     const base = { campaignId: 'campaign-pivot-one', boardId: 'board-pivot-one', expectedBoardVersion: 18, idempotencyKey: 'edit-1', territoryId: 'route-modular-signal', candidateId: 'asset-original', prompt: 'Tighten the shadow edge.', preserve: ['product geometry'], avoid: ['new objects'], aspectRatio: '4:5', quality: 'low' }
     const quote = await edit.execute(base, { signal: new AbortController().signal }) as any
-    const edited = await edit.execute({ ...base, costApproval: { accepted: true, quoteFingerprint: quote.data.quote.quoteFingerprint } }, { signal: new AbortController().signal }) as any
+    const edited = await edit.execute({ ...base, costApproval: reviewerApproval(quote.data.quote.quoteFingerprint, base.idempotencyKey) }, { signal: new AbortController().signal }) as any
     expect(edited).toMatchObject({ ok: true, data: { previousAssetKey: 'asset-original', requiresDesignerApproval: true } })
     const proposal = runtime.getSnapshot().proposals.find((entry) => entry.generation?.parentAssetKey === 'asset-original')!
     expect(proposal.generation).toMatchObject({ version: 2, rasterTextCanonical: false })

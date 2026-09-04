@@ -3,11 +3,12 @@
 import { useEffect } from 'react'
 
 import type { WorkspaceState } from '../../lib/domain/types'
+import type { ReviewerGrantSession } from '../../lib/persistence/project-controller'
 import { usePersistentWorkspace } from '../../hooks/use-persistent-workspace'
 import { useUiStore } from '../../stores/ui-store'
 import { IterumWorkspace } from '../iterum-workspace'
 
-export function PersistentProjectWorkspace({ projectKey, seedState }: { projectKey: string; seedState?: WorkspaceState }) {
+export function PersistentProjectWorkspace({ projectKey, seedState, reviewerGrant }: { projectKey: string; seedState?: WorkspaceState; reviewerGrant?: ReviewerGrantSession }) {
   const persistence = usePersistentWorkspace(projectKey, seedState)
 
   useEffect(() => {
@@ -33,5 +34,5 @@ export function PersistentProjectWorkspace({ projectKey, seedState }: { projectK
     </main>
   }
 
-  return <IterumWorkspace runtime={persistence.runtime} projectController={persistence.controller} projectStatus={persistence.status} showPendingProposalPreview={false} />
+  return <IterumWorkspace runtime={persistence.runtime} projectController={persistence.controller} projectStatus={persistence.status} reviewerGrant={reviewerGrant} showPendingProposalPreview={false} />
 }

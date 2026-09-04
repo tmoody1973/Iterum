@@ -122,4 +122,35 @@ export default defineSchema({
   })
     .index('by_project_and_asset_key', ['projectId', 'assetKey'])
     .index('by_project_and_created_at', ['projectId', 'createdAt']),
+
+  reviewerGrants: defineTable({
+    projectId: v.id('projects'),
+    ownerId: v.id('users'),
+    grantKey: v.string(),
+    creativeSessionId: v.string(),
+    reviewerSessionId: v.string(),
+    costCeilingUsd: v.number(),
+    expiresAt: v.number(),
+    status: v.union(v.literal('active'), v.literal('revoked')),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index('by_grant_key', ['grantKey'])
+    .index('by_project_and_created_at', ['projectId', 'createdAt']),
+
+  generationAuthorizations: defineTable({
+    projectId: v.id('projects'),
+    reviewerGrantId: v.id('reviewerGrants'),
+    quoteFingerprint: v.string(),
+    generationIdempotencyKey: v.string(),
+    estimatedOutputUsd: v.number(),
+    proposerSessionId: v.string(),
+    reviewerSessionId: v.string(),
+    rationale: v.string(),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_reviewer_grant', ['reviewerGrantId'])
+    .index('by_project_and_generation_key', ['projectId', 'generationIdempotencyKey']),
 })

@@ -13,6 +13,7 @@ import type * as http from "../http.js";
 import type * as imageGeneration from "../imageGeneration.js";
 import type * as imageGenerationInternal from "../imageGenerationInternal.js";
 import type * as projects from "../projects.js";
+import type * as reviewerGrants from "../reviewerGrants.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   imageGeneration: typeof imageGeneration;
   imageGenerationInternal: typeof imageGenerationInternal;
   projects: typeof projects;
+  reviewerGrants: typeof reviewerGrants;
 }>;
 
 /**

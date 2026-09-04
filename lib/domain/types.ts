@@ -1,4 +1,4 @@
-export type Actor = 'designer' | 'agent' | 'system'
+export type Actor = 'designer' | 'agent' | 'reviewer' | 'system'
 
 export type Point = { x: number; y: number }
 export type CropRect = { x: number; y: number; width: number; height: number }
@@ -329,6 +329,9 @@ export interface ActionReceipt {
   undoable: boolean
   undo?: UndoEffect
   revertsReceiptId?: string
+  proposedBy?: { actor: 'agent'; sessionId: string }
+  reviewedBy?: { actor: 'reviewer'; sessionId: string }
+  reviewRationale?: string
 }
 
 export interface ProcessedCommand {
@@ -357,6 +360,9 @@ interface CommandBase {
   expectedVersion: number
   idempotencyKey: string
   actor: Actor
+  proposerSessionId?: string
+  reviewerSessionId?: string
+  reviewRationale?: string
 }
 
 export type WorkspaceCommand =
@@ -383,6 +389,7 @@ export type WorkspaceCommand =
   | (CommandBase & { type: 'set-campaign-brief-lock'; locked: boolean })
   | (CommandBase & { type: 'propose-creative-routes'; routes: Array<Omit<CreativeRoute, 'status'>> })
   | (CommandBase & { type: 'review-creative-route'; routeId: string; decision: 'approve' | 'reject' })
+  | (CommandBase & { type: 'authorize-image-generation-quote'; quoteFingerprint: string; generationIdempotencyKey: string; estimatedOutputUsd: number; costCeilingUsd: number })
   | (CommandBase & { type: 'undo-receipt'; receiptId: string })
 
 export type CommandErrorCode =
@@ -417,6 +424,8 @@ export type CommandErrorCode =
   | 'RECEIPT_NOT_FOUND'
   | 'UNDO_UNAVAILABLE'
   | 'DESIGNER_REVIEW_REQUIRED'
+  | 'INVALID_REVIEW_SESSION'
+  | 'COST_APPROVAL_REQUIRED'
 
 export interface CommandSuccess {
   ok: true

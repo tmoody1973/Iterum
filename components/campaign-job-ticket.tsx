@@ -3,14 +3,14 @@
 import { LockKeyhole, LockOpen, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import type { Campaign, CampaignBrief, WorkspaceState } from '../lib/domain/types'
+import type { Actor, Campaign, CampaignBrief, WorkspaceState } from '../lib/domain/types'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
 import type { ProjectSaveStatus } from '../lib/persistence/project-controller'
 
 const joinList = (items: string[]) => items.join('\n')
 const splitList = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
 
-export function CampaignJobTicket({ campaign, version, runtime, onClose, projectStatus }: { campaign: Campaign; version: WorkspaceState['version']; runtime: WorkspaceRuntime; onClose?: () => void; projectStatus?: ProjectSaveStatus }) {
+export function CampaignJobTicket({ campaign, version, runtime, onClose, projectStatus, lockActor }: { campaign: Campaign; version: WorkspaceState['version']; runtime: WorkspaceRuntime; onClose?: () => void; projectStatus?: ProjectSaveStatus; lockActor?: Actor }) {
   const [name, setName] = useState(campaign.name)
   const [line, setLine] = useState(campaign.line)
   const [brief, setBrief] = useState({ ...campaign.creativeBrief, tone: joinList(campaign.creativeBrief.tone), mandatoryAssets: joinList(campaign.creativeBrief.mandatoryAssets), antiDirections: joinList(campaign.creativeBrief.antiDirections) })
@@ -54,7 +54,7 @@ export function CampaignJobTicket({ campaign, version, runtime, onClose, project
     <section className="version-history" aria-labelledby="version-history"><h2 id="version-history">{projectStatus ? 'Cloud state' : 'Session state'}</h2><p>Board V{String(version).padStart(2, '0')} · {projectStatus ? `revision ${projectStatus.headRevision ?? '—'}` : 'one local session'}</p><small>{projectStatus ? `${projectStatus.message}. Named checkpoints and restore controls are available in History.` : 'Open Projects to create a persistent cloud campaign.'}</small></section>
     {message && <p className="ticket-message" aria-live="polite">{message}</p>}
     <footer className="ticket-footer">
-      {locked ? <><span><LockKeyhole aria-hidden="true" />Brief locked by designer</span><button type="button" onClick={() => setLock(false)}><LockOpen aria-hidden="true" />Edit brief</button></> : <><button type="button" onClick={saveDraft}><Save aria-hidden="true" />Save draft</button><button type="button" onClick={saveAndLock}><LockKeyhole aria-hidden="true" />Save + lock</button></>}
+      {locked ? <><span><LockKeyhole aria-hidden="true" />Brief locked by {lockActor === 'reviewer' ? 'Reviewer Agent' : 'designer'}</span><button type="button" onClick={() => setLock(false)}><LockOpen aria-hidden="true" />Edit brief</button></> : <><button type="button" onClick={saveDraft}><Save aria-hidden="true" />Save draft</button><button type="button" onClick={saveAndLock}><LockKeyhole aria-hidden="true" />Save + lock</button></>}
     </footer>
   </aside>
 }

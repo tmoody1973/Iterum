@@ -27,7 +27,7 @@ export function ActionReceipt({ receipt, runtime }: { receipt?: Receipt; runtime
   return <section className="action-toast" aria-label="Latest action receipt">
     <span className="visually-hidden" aria-live="polite">{receipt.summary}</span>
     <span className="receipt-check" aria-hidden="true"><Check /></span>
-    <p><strong>{receipt.action.replaceAll('-', ' ')}</strong> · {receipt.summary}<small>Actor: {receipt.actor} · Board V{String(receipt.version).padStart(2, '0')} · {placedItem ? `Placed at X ${placedItem.position.x} · Y ${placedItem.position.y} · ` : ''}{new Date(receipt.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></p>
+    <p><strong>{receipt.action.replaceAll('-', ' ')}</strong> · {receipt.summary}<small>Actor: {receipt.actor === 'reviewer' ? 'Reviewer Agent' : receipt.actor} · {receipt.proposedBy && receipt.reviewedBy ? `Proposed ${receipt.proposedBy.sessionId} · Reviewed ${receipt.reviewedBy.sessionId} · ` : ''}Board V{String(receipt.version).padStart(2, '0')} · {placedItem ? `Placed at X ${placedItem.position.x} · Y ${placedItem.position.y} · ` : ''}{new Date(receipt.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></p>
     {receipt.undoable ? <button type="button" onClick={undo}><RotateCcw aria-hidden="true" />Undo</button> : <span className="receipt-locked">Recorded</span>}
     <button type="button" className="action-toast-dismiss" aria-label="Dismiss action receipt" onClick={() => setVisibleReceiptId(null)}><X aria-hidden="true" /></button>
   </section>

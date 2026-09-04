@@ -64,16 +64,32 @@ export const execute = action({
     quality: v.union(v.literal('low'), v.literal('medium'), v.literal('high')),
     references: v.array(v.object({ itemId: v.string(), title: v.string(), imageUrl: v.string() })), outputSpecs: v.array(outputSpec),
     parentAssetKey: v.optional(v.string()), maskImageUrl: v.optional(v.string()), costQuote: v.any(),
-    costApproval: v.object({ accepted: v.literal(true), quoteFingerprint: v.string() }),
+    costApproval: v.object({
+      accepted: v.literal(true),
+      quoteFingerprint: v.string(),
+      generationIdempotencyKey: v.string(),
+      proposerSessionId: v.string(),
+      reviewerSessionId: v.string(),
+    }),
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<any> => {
-    if (!(await getAuthUserId(ctx))) throw new ConvexError({ code: 'UNAUTHENTICATED', message: 'Open a private designer session before generating images.' })
+    const ownerId = await getAuthUserId(ctx)
+    if (!ownerId) throw new ConvexError({ code: 'UNAUTHENTICATED', message: 'Open a private designer session before generating images.' })
     const totalImages = args.outputSpecs.reduce((total, spec) => total + spec.count, 0)
     const outputRate = { low: 0.006, medium: 0.053, high: 0.211 }[args.quality]
     const expectedOutputUsd = Number((outputRate * totalImages).toFixed(3))
     if (totalImages < 1 || totalImages > 4 || args.outputSpecs.some((spec) => !Number.isInteger(spec.count) || spec.count < 1 || spec.count > 4) || args.references.length > 8) throw new ConvexError({ code: 'INVALID_GENERATION_REQUEST', message: 'A run may create 1–4 images from at most eight references.' })
-    if (args.costApproval.quoteFingerprint !== args.costQuote?.quoteFingerprint || args.costQuote?.model !== 'gpt-image-2' || args.costQuote?.quality !== args.quality || args.costQuote?.imageCount !== totalImages || args.costQuote?.estimatedOutputUsd !== expectedOutputUsd) throw new ConvexError({ code: 'COST_APPROVAL_REQUIRED', message: 'The approved quote does not match this generation request.' })
+    if (args.costApproval.quoteFingerprint !== args.costQuote?.quoteFingerprint || args.costApproval.generationIdempotencyKey !== args.idempotencyKey || args.costApproval.proposerSessionId === args.costApproval.reviewerSessionId || args.costQuote?.model !== 'gpt-image-2' || args.costQuote?.quality !== args.quality || args.costQuote?.imageCount !== totalImages || args.costQuote?.estimatedOutputUsd !== expectedOutputUsd) throw new ConvexError({ code: 'COST_APPROVAL_REQUIRED', message: 'The approved quote does not match this generation request or independent reviewer session.' })
+    await ctx.runMutation(internal.reviewerGrants.consumeCostAuthorization, {
+      ownerId,
+      projectKey: args.projectKey,
+      quoteFingerprint: args.costApproval.quoteFingerprint,
+      generationIdempotencyKey: args.idempotencyKey,
+      estimatedOutputUsd: expectedOutputUsd,
+      proposerSessionId: args.costApproval.proposerSessionId,
+      reviewerSessionId: args.costApproval.reviewerSessionId,
+    })
     const started: any = await ctx.runMutation(internal.imageGenerationInternal.beginRun, {
       projectKey: args.projectKey, runKey: args.runKey, idempotencyKey: args.idempotencyKey, requestHash: args.requestHash,
       boardVersionBefore: args.boardVersionBefore, operation: args.operation, territoryId: args.territoryId, purpose: args.purpose,

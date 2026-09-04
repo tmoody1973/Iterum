@@ -63,7 +63,8 @@ export function ActionHistory({ snapshot, runtime, onClose, projectController }:
       {snapshot.receipts.map((receipt) => <li key={receipt.id}>
         <div className="history-item-heading"><strong>V{String(receipt.version).padStart(2, '0')}</strong><span>{actionLabel(receipt)}</span><time dateTime={receipt.timestamp}>{new Date(receipt.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
         <p>{receipt.summary}</p>
-        <footer><span>Actor: {receipt.actor}</span>{receipt.undoable ? <button type="button" onClick={() => undo(receipt)} aria-label={`Undo ${receipt.summary}`}><RotateCcw aria-hidden="true" />Undo</button> : <span>Recorded</span>}</footer>
+        <footer><span>Actor: {receipt.actor === 'reviewer' ? 'Reviewer Agent' : receipt.actor}{receipt.proposedBy && receipt.reviewedBy ? ` · Proposed ${receipt.proposedBy.sessionId} · Reviewed ${receipt.reviewedBy.sessionId}` : ''}</span>{receipt.undoable ? <button type="button" onClick={() => undo(receipt)} aria-label={`Undo ${receipt.summary}`}><RotateCcw aria-hidden="true" />Undo</button> : <span>Recorded</span>}</footer>
+        {receipt.reviewRationale && <small>Review rationale: {receipt.reviewRationale}</small>}
       </li>)}
     </ol> : <p className="history-empty">No completed actions yet. Approved, rejected, moved, resized, and undone actions will be recorded here.</p>}
   </aside>

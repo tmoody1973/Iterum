@@ -4,6 +4,30 @@ import { applyWorkspaceCommand } from './commands'
 import { createDemoWorkspaceState } from './demo-data'
 
 describe('applyWorkspaceCommand', () => {
+  it('requires a distinct reviewer session and records the maker-checker evidence', () => {
+    const initial = createDemoWorkspaceState()
+    const rejected = applyWorkspaceCommand(initial, {
+      type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'same-session-review', actor: 'reviewer', proposalId: 'proposal-resin',
+      proposerSessionId: 'agent-one', reviewerSessionId: 'agent-one', reviewRationale: 'The reference is relevant and its source metadata is complete.',
+    })
+    expect(rejected).toMatchObject({ ok: false, error: { code: 'INVALID_REVIEW_SESSION' } })
+
+    const approved = applyWorkspaceCommand(initial, {
+      type: 'approve-proposal', campaignId: initial.campaign.id, boardId: initial.campaign.boardId,
+      expectedVersion: initial.version, idempotencyKey: 'independent-review', actor: 'reviewer', proposalId: 'proposal-resin',
+      proposerSessionId: 'creative-agent-one', reviewerSessionId: 'reviewer-agent-two', reviewRationale: 'The reference supports the material thesis and retains clear provenance.',
+    })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.receipt).toMatchObject({
+      actor: 'reviewer',
+      proposedBy: { actor: 'agent', sessionId: 'creative-agent-one' },
+      reviewedBy: { actor: 'reviewer', sessionId: 'reviewer-agent-two' },
+      reviewRationale: 'The reference supports the material thesis and retains clear provenance.',
+    })
+  })
+
   it('approves a proposal, places it, and records an undoable receipt', () => {
     const initial = createDemoWorkspaceState()
     const approveResult = applyWorkspaceCommand(initial, {

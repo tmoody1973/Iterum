@@ -62,6 +62,9 @@ function createReceipt(
   return {
     id: crypto.randomUUID(), action: command.type, actor: command.actor, version,
     timestamp: new Date().toISOString(), summary, undoable: Boolean(undo), undo, revertsReceiptId,
+    ...(command.proposerSessionId ? { proposedBy: { actor: 'agent' as const, sessionId: command.proposerSessionId } } : {}),
+    ...(command.reviewerSessionId ? { reviewedBy: { actor: 'reviewer' as const, sessionId: command.reviewerSessionId } } : {}),
+    ...(command.reviewRationale ? { reviewRationale: command.reviewRationale } : {}),
   }
 }
 
@@ -250,6 +253,9 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
   if (command.campaignId !== state.campaign.id) return failure(state, 'CAMPAIGN_MISMATCH', 'Command campaign does not match this workspace.')
   if (command.boardId !== state.campaign.boardId) return failure(state, 'BOARD_MISMATCH', 'Command board does not match this workspace.')
   if (command.expectedVersion !== state.version) return failure(state, 'VERSION_CONFLICT', 'The board has changed; refresh and retry this action.')
+  if (command.actor === 'reviewer' && (!command.proposerSessionId || !command.reviewerSessionId || command.proposerSessionId === command.reviewerSessionId || !command.reviewRationale?.trim())) {
+    return failure(state, 'INVALID_REVIEW_SESSION', 'Reviewer actions require distinct proposer and reviewer sessions plus a review rationale.')
+  }
 
   switch (command.type) {
     case 'approve-proposal': {
@@ -515,6 +521,17 @@ export function applyWorkspaceCommand(state: WorkspaceState, command: WorkspaceC
       if (!route) return failure(state, 'CREATIVE_ROUTE_NOT_FOUND', 'The creative route no longer exists.')
       if (route.status !== 'pending') return failure(state, 'CREATIVE_ROUTE_NOT_PENDING', 'Only pending creative routes can be reviewed.')
       return success({ ...state, creativeRoutes: state.creativeRoutes.map((candidate) => candidate.id === route.id ? { ...candidate, status: command.decision === 'approve' ? 'approved' : 'rejected' } : candidate) }, command, `${command.decision === 'approve' ? 'Approved' : 'Rejected'} creative route “${route.name}”.`, { type: 'creative-route-decision', routeId: route.id, previousStatus: route.status })
+    }
+    case 'authorize-image-generation-quote': {
+      if (command.actor !== 'reviewer') return failure(state, 'DESIGNER_REVIEW_REQUIRED', 'Only an independent reviewer can authorize a delegated image-generation quote.')
+      if (!command.quoteFingerprint.trim() || !command.generationIdempotencyKey.trim() || !Number.isFinite(command.estimatedOutputUsd) || command.estimatedOutputUsd < 0 || !Number.isFinite(command.costCeilingUsd) || command.costCeilingUsd < command.estimatedOutputUsd) {
+        return failure(state, 'COST_APPROVAL_REQUIRED', 'The exact quote fingerprint, generation idempotency key, and sufficient delegated cost ceiling are required.')
+      }
+      return success(
+        state,
+        command,
+        `Reviewer authorized image-generation quote ${command.quoteFingerprint} at $${command.estimatedOutputUsd.toFixed(3)} within a $${command.costCeilingUsd.toFixed(3)} ceiling.`,
+      )
     }
     case 'undo-receipt': {
       const target = state.receipts.find((receipt) => receipt.id === command.receiptId)

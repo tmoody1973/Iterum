@@ -41,6 +41,41 @@ export interface CreateProjectInput {
   idempotencyKey: string
 }
 
+export interface ReviewerGrantSession {
+  projectKey: string
+  grantKey: string
+  creativeSessionId: string
+  reviewerSessionId: string
+  costCeilingUsd: number
+  expiresAt: number
+}
+
+export interface CreateReviewerGrantInput {
+  creativeSessionId: string
+  reviewerSessionId: string
+  expiresInMinutes: number
+  costCeilingUsd: number
+}
+
+export interface ReviewerGrantController {
+  create(input: CreateReviewerGrantInput): Promise<ReviewerGrantSession>
+  validate(session: ReviewerGrantSession, action: string): Promise<void>
+  authorizeCost(session: ReviewerGrantSession, input: {
+    quoteFingerprint: string
+    generationIdempotencyKey: string
+    estimatedOutputUsd: number
+    rationale: string
+  }): Promise<{
+    accepted: true
+    quoteFingerprint: string
+    generationIdempotencyKey: string
+    proposerSessionId: string
+    reviewerSessionId: string
+    expiresAt: number
+  }>
+  revoke(grantKey: string): Promise<void>
+}
+
 export interface ProjectCatalogController {
   listProjects(): Promise<ProjectSummary[]>
   createProject(input: CreateProjectInput): Promise<ProjectSummary>
@@ -54,6 +89,7 @@ export interface ProjectController extends ProjectCatalogController {
   listVersions(): Promise<ProjectVersionSummary[]>
   restoreVersion(versionId: string, actor: 'designer' | 'agent', idempotencyKey: string): Promise<{ state: WorkspaceState; status: ProjectSaveStatus }>
   imageGeneration?: ImageGenerationController
+  reviewerGrants?: ReviewerGrantController
 }
 
 export function toProjectSummary(project: {

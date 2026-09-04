@@ -29,6 +29,9 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
   const createVersionMutation = useMutation(api.projects.createVersion)
   const restoreVersionMutation = useMutation(api.projects.restoreVersion)
   const executeImageGeneration = useAction(api.imageGeneration.execute)
+  const createReviewerGrant = useAction(api.reviewerGrants.create)
+  const authorizeReviewerCost = useAction(api.reviewerGrants.authorizeCost)
+  const revokeReviewerGrant = useMutation(api.reviewerGrants.revoke)
   const markImageGenerationReview = useMutation(api.imageGeneration.markAwaitingReview)
   const [status, setStatus] = useState<ProjectSaveStatus>({ phase: 'loading', projectKey, headRevision: null, savedWorkspaceVersion: null, lastSavedAt: null, message: 'Opening cloud project…' })
   const statusRef = useRef(status)
@@ -98,6 +101,20 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
     publishStatus({ phase: 'ready', projectKey, headRevision: remoteProject.headRevision, savedWorkspaceVersion: remoteProject.workspaceVersion, lastSavedAt: remoteProject.updatedAt, message: 'Cloud project ready' })
   }, [ensureProject, projectKey, publishStatus, remoteProject, runtime, seedState])
 
+  useEffect(() => {
+    if (!hydratedRef.current || !remoteProject || headRevisionRef.current === remoteProject.headRevision) return
+    const hasLocalWork = Boolean(pendingSnapshotRef.current || saveLoopRef.current || timerRef.current)
+    if (hasLocalWork) {
+      publishStatus({ ...statusRef.current, phase: 'conflict', message: 'This project changed in the other agent session while local work was pending.' })
+      return
+    }
+    suppressNextChangeRef.current = true
+    runtime.replaceSnapshot(remoteProject.workspace as WorkspaceState)
+    headRevisionRef.current = remoteProject.headRevision
+    savedWorkspaceVersionRef.current = remoteProject.workspaceVersion
+    publishStatus({ phase: 'saved', projectKey, headRevision: remoteProject.headRevision, savedWorkspaceVersion: remoteProject.workspaceVersion, lastSavedAt: remoteProject.updatedAt, message: 'Synced review decision from Convex' })
+  }, [projectKey, publishStatus, remoteProject, runtime])
+
   useEffect(() => runtime.subscribe(() => {
     if (!hydratedRef.current) return
     if (suppressNextChangeRef.current) { suppressNextChangeRef.current = false; return }
@@ -156,7 +173,37 @@ export function usePersistentWorkspace(projectKey: string, seedState?: Workspace
       },
       getRun: async (runKey) => await convex.query(api.imageGeneration.getRun, { projectKey, runKey }) as ImageGenerationRun | null,
     },
-  }), [convex, createVersionMutation, executeImageGeneration, flush, markImageGenerationReview, projectKey, publishStatus, restoreVersionMutation, runtime])
+    reviewerGrants: {
+      create: async (input) => await createReviewerGrant({ projectKey, ...input }),
+      validate: async (session, action) => {
+        await convex.query(api.reviewerGrants.validateReview, {
+          projectKey,
+          grantKey: session.grantKey,
+          creativeSessionId: session.creativeSessionId,
+          reviewerSessionId: session.reviewerSessionId,
+          action,
+        })
+      },
+      authorizeCost: async (session, input) => {
+        const authorization = await authorizeReviewerCost({
+          projectKey,
+          grantKey: session.grantKey,
+          creativeSessionId: session.creativeSessionId,
+          reviewerSessionId: session.reviewerSessionId,
+          ...input,
+        })
+        return {
+          accepted: true,
+          quoteFingerprint: authorization.quoteFingerprint,
+          generationIdempotencyKey: authorization.generationIdempotencyKey,
+          proposerSessionId: session.creativeSessionId,
+          reviewerSessionId: session.reviewerSessionId,
+          expiresAt: authorization.expiresAt,
+        }
+      },
+      revoke: async (grantKey) => { await revokeReviewerGrant({ projectKey, grantKey }) },
+    },
+  }), [authorizeReviewerCost, convex, createReviewerGrant, createVersionMutation, executeImageGeneration, flush, markImageGenerationReview, projectKey, publishStatus, restoreVersionMutation, revokeReviewerGrant, runtime])
 
   return { runtime, project: remoteProject, status, controller, isReady: hydratedRef.current && remoteProject !== null && remoteProject !== undefined }
 }

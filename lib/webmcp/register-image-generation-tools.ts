@@ -2,7 +2,7 @@ import type { WebMCPTool } from '../../types/webmcp'
 import type { WorkspaceRuntime } from '../domain/workspace-runtime'
 import type { BoardItem, CropRect, GeneratedImageLineage, Proposal, WorkspaceState } from '../domain/types'
 import { IMAGE_SIZE_BY_RATIO, quoteImageGeneration, stableImageFingerprint } from '../image-generation/cost'
-import type { CampaignApplicationFormat, ImageAspectRatio, ImageGenerationOutputSpec, ImageGenerationQuality, ImageGenerationRun } from '../image-generation/types'
+import type { CampaignApplicationFormat, ExecuteImageGenerationInput, ImageAspectRatio, ImageGenerationOutputSpec, ImageGenerationQuality, ImageGenerationRun } from '../image-generation/types'
 import type { ProjectController } from '../persistence/project-controller'
 import { failure, success } from './types'
 
@@ -50,8 +50,10 @@ function generatedSource(state: WorkspaceState, candidateId: unknown) {
   return undefined
 }
 
-function validApproval(value: unknown, fingerprint: string) {
-  return isObject(value) && exact(value, ['accepted', 'quoteFingerprint']) && value.accepted === true && value.quoteFingerprint === fingerprint
+type CostApproval = ExecuteImageGenerationInput['costApproval']
+
+function validApproval(value: unknown, fingerprint: string, generationIdempotencyKey: string): value is CostApproval {
+  return isObject(value) && exact(value, ['accepted', 'quoteFingerprint', 'generationIdempotencyKey', 'proposerSessionId', 'reviewerSessionId']) && value.accepted === true && value.quoteFingerprint === fingerprint && value.generationIdempotencyKey === generationIdempotencyKey && typeof value.proposerSessionId === 'string' && typeof value.reviewerSessionId === 'string' && value.proposerSessionId.length >= 3 && value.reviewerSessionId.length >= 3 && value.proposerSessionId !== value.reviewerSessionId
 }
 
 function generationPrompt(state: WorkspaceState, routeId: string, prompt: string, preserve: string[], avoid: string[], purpose: string, crop?: CropRect) {
@@ -98,7 +100,7 @@ async function addRunToReview(runtime: WorkspaceRuntime, controller: NonNullable
   return updated
 }
 
-const costApprovalSchema = { type: 'object', properties: { accepted: { type: 'boolean', const: true }, quoteFingerprint: { type: 'string', minLength: 1 } }, required: ['accepted', 'quoteFingerprint'], additionalProperties: false }
+const costApprovalSchema = { type: 'object', properties: { accepted: { type: 'boolean', const: true }, quoteFingerprint: { type: 'string', minLength: 1 }, generationIdempotencyKey: { type: 'string', minLength: 1, maxLength: 120 }, proposerSessionId: { type: 'string', minLength: 3, maxLength: 120 }, reviewerSessionId: { type: 'string', minLength: 3, maxLength: 120 } }, required: ['accepted', 'quoteFingerprint', 'generationIdempotencyKey', 'proposerSessionId', 'reviewerSessionId'], additionalProperties: false }
 const commonProperties = {
   campaignId: { type: 'string' }, boardId: { type: 'string' }, expectedBoardVersion: { type: 'integer', minimum: 0 }, idempotencyKey: { type: 'string', minLength: 1, maxLength: 120 },
   territoryId: { type: 'string', minLength: 1, maxLength: 80 }, prompt: { type: 'string', minLength: 1, maxLength: 2000 },
@@ -106,8 +108,8 @@ const commonProperties = {
   quality: { type: 'string', enum: qualities }, costApproval: costApprovalSchema,
 }
 
-function costResponse(state: WorkspaceState, quote: ReturnType<typeof quoteImageGeneration>) {
-  return success(state, { quote, generationStarted: false, nextStep: 'Call the same tool again with costApproval.accepted=true and this exact quoteFingerprint.' }, `Cost approval required before generating ${quote.imageCount} image${quote.imageCount === 1 ? '' : 's'} (estimated output $${quote.estimatedOutputUsd.toFixed(3)} plus input tokens).`)
+function costResponse(state: WorkspaceState, quote: ReturnType<typeof quoteImageGeneration>, generationIdempotencyKey: string) {
+  return success(state, { quote, generationIdempotencyKey, generationStarted: false, nextStep: 'Ask the independent Reviewer Agent to call authorize_image_generation_quote, then retry with its returned costApproval object.' }, `Independent reviewer authorization is required before generating ${quote.imageCount} image${quote.imageCount === 1 ? '' : 's'} (estimated output $${quote.estimatedOutputUsd.toFixed(3)} plus input tokens).`)
 }
 
 export function createImageGenerationTools(runtime: WorkspaceRuntime, projectController: ProjectController, reviewUi?: ReviewUi): WebMCPTool[] {
@@ -125,10 +127,10 @@ export function createImageGenerationTools(runtime: WorkspaceRuntime, projectCon
         if (!references) return failure(state, 'REFERENCE_NOT_FOUND', 'Every referenceItemId must identify a current board item with an image.')
         const request = { operation: 'generate-candidates', territoryId: input.territoryId, purpose: input.purpose, referenceItemIds: input.referenceItemIds, prompt: input.prompt, preserve: input.preserve, avoid: input.avoid, aspectRatio: input.aspectRatio, quality: input.quality, candidateCount: input.candidateCount }
         const quote = quoteImageGeneration(input.quality as ImageGenerationQuality, input.candidateCount as number, request)
-        if (!validApproval(input.costApproval, quote.quoteFingerprint)) return costResponse(state, quote)
+        if (!validApproval(input.costApproval, quote.quoteFingerprint, input.idempotencyKey as string)) return costResponse(state, quote, input.idempotencyKey as string)
         try {
           const fullPrompt = generationPrompt(state, input.territoryId as string, input.prompt, input.preserve as string[], input.avoid as string[], 'campaign-image')
-          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'generate-candidates', territoryId: input.territoryId as string, purpose: 'campaign-image', prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references, outputSpecs: [{ label: 'Campaign image study', aspectRatio: input.aspectRatio as ImageAspectRatio, size: IMAGE_SIZE_BY_RATIO[input.aspectRatio as ImageAspectRatio], count: input.candidateCount as number }], costQuote: quote, costApproval: input.costApproval as { accepted: true; quoteFingerprint: string } })
+          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'generate-candidates', territoryId: input.territoryId as string, purpose: 'campaign-image', prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references, outputSpecs: [{ label: 'Campaign image study', aspectRatio: input.aspectRatio as ImageAspectRatio, size: IMAGE_SIZE_BY_RATIO[input.aspectRatio as ImageAspectRatio], count: input.candidateCount as number }], costQuote: quote, costApproval: input.costApproval })
           const reviewed = await addRunToReview(runtime, controller, run, approvedRoute(state, input.territoryId)!.territory, input.idempotencyKey as string, reviewUi)
           return success(runtime.getSnapshot(), { run: reviewed, proposals: reviewed.proposalIds, requiresDesignerApproval: true }, `Generated ${reviewed.outputs.length} candidate${reviewed.outputs.length === 1 ? '' : 's'} into Review.`, undefined, true)
         } catch (error) { return failure(runtime.getSnapshot(), 'IMAGE_GENERATION_FAILED', error instanceof Error ? error.message : 'Image generation failed.', true) }
@@ -146,10 +148,10 @@ export function createImageGenerationTools(runtime: WorkspaceRuntime, projectCon
         if (!input || !source || !approvedRoute(state, input.territoryId) || typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 2000 || !stringList(input.preserve, 12) || !stringList(input.avoid, 12) || !ratios.includes(input.aspectRatio as ImageAspectRatio) || !qualities.includes(input.quality as ImageGenerationQuality) || !cropValid || (input.maskImageUrl !== undefined && (typeof input.maskImageUrl !== 'string' || !publicImageUrl(input.maskImageUrl)))) return failure(state, 'VALIDATION_ERROR', 'Use an existing generated candidate, approved territory, edit prompt, optional valid crop or public HTTPS mask URL, and supported output settings.')
         const request = { operation: 'edit-candidate', territoryId: input.territoryId, candidateId: source.generation.assetKey, prompt: input.prompt, preserve: input.preserve, avoid: input.avoid, aspectRatio: input.aspectRatio, quality: input.quality, crop: input.crop ?? null, maskImageUrl: input.maskImageUrl ?? null }
         const quote = quoteImageGeneration(input.quality as ImageGenerationQuality, 1, request)
-        if (!validApproval(input.costApproval, quote.quoteFingerprint)) return costResponse(state, quote)
+        if (!validApproval(input.costApproval, quote.quoteFingerprint, input.idempotencyKey as string)) return costResponse(state, quote, input.idempotencyKey as string)
         try {
           const fullPrompt = generationPrompt(state, input.territoryId as string, input.prompt, input.preserve as string[], input.avoid as string[], source.generation.purpose, crop)
-          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'edit-candidate', territoryId: input.territoryId as string, purpose: source.generation.purpose, prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references: [{ itemId: source.generation.assetKey, title: source.title, imageUrl: absoluteImageUrl(source.imageUrl) }], outputSpecs: [{ label: `${source.title} · edit`, aspectRatio: input.aspectRatio as ImageAspectRatio, size: IMAGE_SIZE_BY_RATIO[input.aspectRatio as ImageAspectRatio], count: 1 }], parentAssetKey: source.generation.assetKey, ...(typeof input.maskImageUrl === 'string' ? { maskImageUrl: absoluteImageUrl(input.maskImageUrl) } : {}), costQuote: quote, costApproval: input.costApproval as { accepted: true; quoteFingerprint: string } })
+          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'edit-candidate', territoryId: input.territoryId as string, purpose: source.generation.purpose, prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references: [{ itemId: source.generation.assetKey, title: source.title, imageUrl: absoluteImageUrl(source.imageUrl) }], outputSpecs: [{ label: `${source.title} · edit`, aspectRatio: input.aspectRatio as ImageAspectRatio, size: IMAGE_SIZE_BY_RATIO[input.aspectRatio as ImageAspectRatio], count: 1 }], parentAssetKey: source.generation.assetKey, ...(typeof input.maskImageUrl === 'string' ? { maskImageUrl: absoluteImageUrl(input.maskImageUrl) } : {}), costQuote: quote, costApproval: input.costApproval })
           const reviewed = await addRunToReview(runtime, controller, run, approvedRoute(state, input.territoryId)!.territory, input.idempotencyKey as string, reviewUi)
           return success(runtime.getSnapshot(), { run: reviewed, previousAssetKey: source.generation.assetKey, newAssetKey: reviewed.outputs[0]?.assetKey, requiresDesignerApproval: true }, 'Created an immutable edited candidate in Review.', undefined, true)
         } catch (error) { return failure(runtime.getSnapshot(), 'IMAGE_EDIT_FAILED', error instanceof Error ? error.message : 'Image editing failed.', true) }
@@ -171,11 +173,11 @@ export function createImageGenerationTools(runtime: WorkspaceRuntime, projectCon
         if (!references) return failure(state, 'REFERENCE_NOT_FOUND', 'Every application reference must be an approved board item with an image.')
         const request = { operation: 'generate-applications', territoryId: input.territoryId, sourceItemId: source.id, referenceItemIds: extraIds, formats, prompt: input.prompt, preserve: input.preserve, avoid: input.avoid, quality: input.quality }
         const quote = quoteImageGeneration(input.quality as ImageGenerationQuality, formats.length, request)
-        if (!validApproval(input.costApproval, quote.quoteFingerprint)) return costResponse(state, quote)
+        if (!validApproval(input.costApproval, quote.quoteFingerprint, input.idempotencyKey as string)) return costResponse(state, quote, input.idempotencyKey as string)
         const outputSpecs: ImageGenerationOutputSpec[] = formats.map((format) => ({ label: `${route.name} · ${format}`, applicationFormat: format, aspectRatio: applicationRatio[format], size: IMAGE_SIZE_BY_RATIO[applicationRatio[format]], count: 1 }))
         try {
           const fullPrompt = generationPrompt(state, route.id, input.prompt, input.preserve as string[], input.avoid as string[], 'campaign-application')
-          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'generate-applications', territoryId: route.id, purpose: 'campaign-application', prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references, outputSpecs, costQuote: quote, costApproval: input.costApproval as { accepted: true; quoteFingerprint: string } })
+          const run = await controller.execute({ runKey: crypto.randomUUID(), idempotencyKey: input.idempotencyKey as string, requestHash: stableImageFingerprint(request), boardVersionBefore: state.version, operation: 'generate-applications', territoryId: route.id, purpose: 'campaign-application', prompt: fullPrompt, preserve: input.preserve as string[], avoid: input.avoid as string[], quality: input.quality as ImageGenerationQuality, references, outputSpecs, costQuote: quote, costApproval: input.costApproval })
           const reviewed = await addRunToReview(runtime, controller, run, route.territory, input.idempotencyKey as string, reviewUi)
           return success(runtime.getSnapshot(), { run: reviewed, applications: reviewed.outputs.map((output) => ({ assetKey: output.assetKey, format: output.applicationFormat, proposalId: `generated-${output.assetKey}` })), requiresDesignerApproval: true, typographyBoundary: 'Generated outputs are raster image layers; final type remains editable and designer-set in Iterum.' }, `Generated ${reviewed.outputs.length} campaign application${reviewed.outputs.length === 1 ? '' : 's'} into Review.`, undefined, true)
         } catch (error) { return failure(runtime.getSnapshot(), 'APPLICATION_GENERATION_FAILED', error instanceof Error ? error.message : 'Campaign application generation failed.', true) }

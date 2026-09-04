@@ -6,7 +6,7 @@ import { useWebClipIntake } from '../hooks/use-web-clip-intake'
 import { demoRuntime } from '../lib/domain/demo-runtime'
 import type { WorkspaceRuntime } from '../lib/domain/workspace-runtime'
 import type { Point, Proposal } from '../lib/domain/types'
-import type { ProjectController, ProjectSaveStatus } from '../lib/persistence/project-controller'
+import type { ProjectController, ProjectSaveStatus, ReviewerGrantSession } from '../lib/persistence/project-controller'
 import { useUiStore } from '../stores/ui-store'
 import { BottomModeBar } from './bottom-mode-bar'
 import { CampaignJobTicket } from './campaign-job-ticket'
@@ -44,10 +44,10 @@ function PlacementProjection({ proposal, placement }: { proposal: Proposal; plac
   </figure>
 }
 
-export function IterumWorkspace({ runtime, showPendingProposalPreview = true, reviewOnMount = false, initialPreviewLayoutProposalId, projectController, projectStatus }: { runtime?: WorkspaceRuntime; showPendingProposalPreview?: boolean; reviewOnMount?: boolean; initialPreviewLayoutProposalId?: string; projectController?: ProjectController; projectStatus?: ProjectSaveStatus }) {
+export function IterumWorkspace({ runtime, showPendingProposalPreview = true, reviewOnMount = false, initialPreviewLayoutProposalId, projectController, projectStatus, reviewerGrant }: { runtime?: WorkspaceRuntime; showPendingProposalPreview?: boolean; reviewOnMount?: boolean; initialPreviewLayoutProposalId?: string; projectController?: ProjectController; projectStatus?: ProjectSaveStatus; reviewerGrant?: ReviewerGrantSession }) {
   const workspaceRuntime = runtime ?? demoRuntime
   const snapshot = useWorkspaceSnapshot(workspaceRuntime)
-  useWebMcpTools(workspaceRuntime, projectController)
+  useWebMcpTools(workspaceRuntime, projectController, reviewerGrant)
   useWebClipIntake(workspaceRuntime)
   const activeTool = useUiStore((state) => state.activeTool)
   const activeWorkspaceMode = useUiStore((state) => state.activeWorkspaceMode)
@@ -118,8 +118,9 @@ export function IterumWorkspace({ runtime, showPendingProposalPreview = true, re
         projectController={projectController}
         projectStatus={projectStatus}
       />
+      {reviewerGrant && <div className="reviewer-session-banner" role="status"><strong>Independent Reviewer Agent</strong><span>Creative session {reviewerGrant.creativeSessionId.slice(0, 18)}…</span><span>Cost ceiling ${reviewerGrant.costCeilingUsd.toFixed(2)}</span><span>Expires {new Date(reviewerGrant.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>}
       <div className="desk-zones">
-        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} runtime={workspaceRuntime} onClose={closeBrief} projectStatus={projectStatus} />
+        <CampaignJobTicket campaign={snapshot.campaign} version={snapshot.version} runtime={workspaceRuntime} onClose={closeBrief} projectStatus={projectStatus} lockActor={snapshot.receipts.find((receipt) => receipt.action === 'set-campaign-brief-lock')?.actor} />
         <main className="working-mechanical" aria-label="Working mechanical">
           <div className="mechanical-meta"><span>Mechanical</span><span>{snapshot.campaign.name.replace(/\s+/g, '_')}_directions_{versionLabel}</span><span><strong>{snapshot.boardItems.length} items</strong> · 3 routes</span></div>
           <MechanicalToolbar activeTool={activeTool} onToolChange={setActiveTool} boardItems={snapshot.boardItems} selectedItem={selectedBoardItem} onToggleSelectedLock={() => { if (selectedBoardItem) workspaceRuntime.dispatch({ type: 'set-board-item-lock', campaignId: snapshot.campaign.id, boardId: snapshot.campaign.boardId, expectedVersion: snapshot.version, idempotencyKey: crypto.randomUUID(), actor: 'designer', itemId: selectedBoardItem.id, locked: !selectedBoardItem.locked }) }} />

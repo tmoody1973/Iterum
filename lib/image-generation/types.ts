@@ -49,7 +49,13 @@ export interface ExecuteImageGenerationInput {
   parentAssetKey?: string
   maskImageUrl?: string
   costQuote: ImageCostQuote
-  costApproval: { accepted: true; quoteFingerprint: string }
+  costApproval: {
+    accepted: true
+    quoteFingerprint: string
+    generationIdempotencyKey: string
+    proposerSessionId: string
+    reviewerSessionId: string
+  }
 }
 
 export interface GeneratedImageAsset {
