@@ -50,7 +50,7 @@ export function ReviewerPassSetup({ projectKey }: { projectKey: string }) {
     <dl>
       <div><dt>Scope</dt><dd>{projectKey}</dd></div>
       <div><dt>Expires</dt><dd>2 hours after creation</dd></div>
-      <div><dt>Generation ceiling</dt><dd>$0.25 total per exact approved quote</dd></div>
+      <div><dt>Total generation budget</dt><dd>$0.25 across this reviewer pass</dd></div>
     </dl>
     {!grant ? <button type="button" onClick={create} disabled={busy}>{busy ? 'Preparing…' : 'Create reviewer pass'}</button> : <a className="reviewer-pass-link" href={reviewerUrl}>Open reviewer workspace</a>}
     {message && <p role="status">{message}</p>}
